@@ -1,28 +1,28 @@
 day 1
 
-artifact：制品
-archive：归档
-argument：论证，争议
-parameter：参数
-parse：解析
-parser：解析器
-request：请求
-response：响应
-awful：糟糕的，可怕的，非常，很
+    artifact：制品
+    archive：归档
+    argument：论证，争议
+    parameter：参数
+    parse：解析
+    parser：解析器
+    request：请求
+    response：响应
+    awful：糟糕的，可怕的，非常，很
     an awful lot：很多，相当多
-second：第二，秒，片刻，瞬间
+    second：第二，秒，片刻，瞬间
 
 day 2
 
-tool： 工具
-util（utility的缩写）：工具包
-depend：依赖
-dependence：依赖
-dependent：由...决定，取决于...
-command：命令
-download：下载
-path：路径，变量
-directory：目录
-global：全局的
+    tool： 工具
+    util（utility的缩写）：工具包
+    depend：依赖
+    dependence：依赖
+    dependent：由...决定，取决于...
+    command：命令
+    download：下载
+    path：路径，变量
+    directory：目录
+    global：全局的
 
 
