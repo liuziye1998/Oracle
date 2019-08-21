@@ -25,6 +25,10 @@ git remote -v
 # 查看状态(包括add commit等的状态)
 git status
 
+# 撤销操作
+git reset HEAD 如果后面什么都不跟的话 就是上一次add 里面的全部撤销了 
+git reset HEAD XXX/XXX/XXX.java 就是对某个文件进行撤销了
+
 # 编辑文件
 vim README.md
 
