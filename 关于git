@@ -40,6 +40,12 @@ git add --all
 # 提交修改文件
 git commit -m "add README.md"
 
+# 本地仓库删除文件同步到远程仓库
+git rm 文件名 （会生成一个操作名称）
+git commit -m "(输入git rm后生成的名称)"
+git push origin master
+
+
 # 查看commit信息
 git log
 
