@@ -1,9 +1,8 @@
-<<<<<<< HEAD
+
 https://blog.csdn.net/realzuile/article/details/82688654（磁盘应为逻辑卷盘，主分区盘可能会导致失败）
 
 
 administrator guide https://docs.oracle.com/cd/B28359_01/server.111/b28310/dba003.htm#ADMIN12472
-=======
-https://blog.csdn.net/realzuile/article/details/82688654（磁盘应为逻辑卷盘，主分区盘可能会导致失败）
-https://www.cnblogs.com/abella/p/10231964.html（删除分区）
->>>>>>> 124693c487d017a92286e0a13817dda836881502
+
+
+
