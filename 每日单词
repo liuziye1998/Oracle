@@ -71,3 +71,12 @@ day 6
     recovery：恢复，复原
     spfile：二进制文件
     pfile：静态参数文件
+    restrict：限制，约束
+    quiesce：静默，终端机静止
+    unquiesce：取消静默
+
+day 7
+    suspend：延缓，使暂停
+    resume：恢复，继续
+    dispatchers：调度员，调度程序，分配器
+    initialization：初始化
