@@ -4,5 +4,13 @@ https://blog.csdn.net/realzuile/article/details/82688654（磁盘应为逻辑卷
 
 administrator guide https://docs.oracle.com/cd/B28359_01/server.111/b28310/dba003.htm#ADMIN12472
 
+若系统环境为简体中文，安装执行可能会出现乱码现象
+    解决办法：
+        设置临时语言环境后再进行安装，
+            LANG=en_US ./runInstall
+        或
+            unset LANG 
+        
+
 
 
