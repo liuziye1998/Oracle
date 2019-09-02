@@ -47,3 +47,9 @@ create user 用户名 identified by 密码 default tablespace 表空间名称 te
     connect
     resource
     dba
+
+创建角色
+    create role 角色
+
+角色授权
+    grant 权限 to 角色
