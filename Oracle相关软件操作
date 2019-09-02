@@ -53,3 +53,7 @@ create user 用户名 identified by 密码 default tablespace 表空间名称 te
 
 角色授权
     grant 权限 to 角色
+
+将角色赋予用户
+    grant 角色 to 用户
+    
