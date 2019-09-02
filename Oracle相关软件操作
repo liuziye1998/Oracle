@@ -42,3 +42,8 @@ create user 用户名 identified by 密码 default tablespace 表空间名称 te
 删除用户
     drop user 用户名 cascade;
     cascade表示将用户连同其创建的东西去全部删除
+
+三种权限等级
+    connect
+    resource
+    dba
