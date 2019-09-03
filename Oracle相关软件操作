@@ -10,25 +10,38 @@ conn 用户名/密码 as sysdba 以数据库管理员的身份连接数据库
 查看当前用户的所有表
     select table_name from user_tables;
 
-创建表空间
-    create tablespace test_tablespace(表空间名称) datafile 'testfile.dbf（表空间实际存放的位置）' size 10m（表空间大小）; 
-
-创建临时表空间
-    create temporary tablespace temp_tablespace tempfile 'tempfile.dbf' size 10m;   
-
-查看表空间存储的位置
-    select file_name from dba_data_files where tablespace_name = 'test_tablespace';
-
-查看临时表空间存储位置
-    select file_name from dba_temp_files where tablespace_name = 'temp_tablespace'; 
+ 
 
 创建用户
-create user 用户名 identified by 密码 default tablespace 表空间名称 temporary tablespace 临时表空间名
+    create user 用户名 identified by 密码 default tablespace 表空间名称 temporary tablespace 临时表空间名
+
+修改用户信息
+    alter user 用户名 identified by 密码 default tablespace 表空间名称 temporary tablespace 临时表空间名
 
 查看创建的用户
     select username from dba_users;
+三种权限等级
+    connect
+    resource
+    dba
+
+查询系统权限
+    select * from system_privilege_map;
+    常用的有以下权限
+        create session：创建会话
+        create sequence：创建序列
+        create table：创建表
+        create user：创建用户
+        create view：创建视图
+        alter user：更改用户
+        drop user：删除用户 
+
 给用户授权
-    grant 权限 to 用户名
+    grant 权限,权限2 to 用户1/角色1，用户2/角色2，public（表示全部用户）
+
+回收权限
+    revoke 权限 from 用户/public
+    revoke 权限 from 角色
 
 更改密码
     alter user 用户名 identified by 新密码
@@ -43,17 +56,93 @@ create user 用户名 identified by 密码 default tablespace 表空间名称 te
     drop user 用户名 cascade;
     cascade表示将用户连同其创建的东西去全部删除
 
-三种权限等级
-    connect
-    resource
-    dba
+
+对象：例如表
+查询所有Oracle对象权限
+    select * from table__privilege_map;
+
+将操作对象的某些权限/所有权限授权给用户或者角色
+    grant 对象权限/所有对象权限 on 对象名 to 用户/全部用户/角色
+        对象名要指定清楚，比如某某用户的某某表 system.temp system用户下的temp表     
+
+将对象的相关权限撤销
+    revoke 对象权限 on 对象名 from 用户/全部用户/角色
+
+
+角色：可以理解为多个权限的集合
 
 创建角色
     create role 角色
+
+删除角色
+    drop rolo 角色名
 
 角色授权
     grant 权限 to 角色
 
 将角色赋予用户
     grant 角色 to 用户
-    
+
+将用户的角色撤销
+    revoke 角色名 from 用户
+
+
+表空间
+
+创建表空间
+    create tablespace test_tablespace(表空间名称) datafile 'testfile.dbf（表空间实际存放的位置）' size 10m（表空间大小）; 
+
+创建临时表空间
+    create temporary tablespace temp_tablespace tempfile 'tempfile.dbf' size 10m;   
+
+向表空间增加数据文件
+    alter tablespace 表空间名称 add datafile(注意是datafile不是tempfile) '数据文件名称以.dbf结尾' size 10m;
+
+从表空间内删除数据文件
+    alter tablespace 表空间名称 drop datafile '数据文件名称'
+        注意：不能删除表空间的第一个创建的数据文件，如果需要删除，就需要删除整个的表空间
+
+删除表空间
+    drop tablespace 表空间名 （可选参数including contents）
+    drop tablespace 表空间名 (including contects 表示连同表空间的数据文件一起删除)
+
+修改用户所属的表空间
+    alter user 用户名 default/temporary tablespace 表空间名称;
+
+修改表空间的状态
+ 
+ 1.连接或脱机状态
+    alter tablespace 表空间名称 online/offline:
+        online：表示联机状态
+        offline：表示脱机状态
+    alter tablespace user online/offline;
+        将user表空间设置为联机或者脱机状态
+    select status from dba_tablespaces where tablespace_name = '表空间名（名称必须大写）';
+        查看系统管理员表空间中user的状态
+
+2.只读和可读写状态
+    read only 只读状态
+    read write  读写状态
+    alter tablespace 表空间名称 read only/read write;
+    alter tablespace user read only/read write
+        将表空间user设为只读或者读写状态
+查看表空间存储的位置
+    dba_data_files 存放数据库数据文件
+    select file_name from dba_data_files where tablespace_name = '表空间名（名称必须大写）';
+
+查看临时表空间存储位置
+    select file_name from dba_temp_files where tablespace_name = '表空间名（名称必须大写）';
+查询所有表空间的详细信息
+    系统管理员：select tablespace_name from dba_tablespaces;
+    用户：select tablespace_name from user_tablespaces;
+
+查看数据库所有用户的用户信息
+    dba_users;
+    select * from dba_users;
+
+查看当前用的用户信息
+    user_users;
+    select * from user_users;
+
+
+
