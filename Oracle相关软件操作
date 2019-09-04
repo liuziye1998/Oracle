@@ -4,14 +4,21 @@ conn 用户名/密码 连接到数据库中
 
 conn 用户名/密码 as sysdba 以数据库管理员的身份连接数据库
 
+用户
 给用户名解锁
     alter user 用户名 account unlock
 
 查看当前用户的所有表
     select table_name from user_tables;
 
- 
+查看数据库所有用户的用户信息
+    dba_users;
+    select * from dba_users;
 
+查看当前用的用户信息
+    user_users;
+    select * from user_users;
+ 
 创建用户
     create user 用户名 identified by 密码 default tablespace 表空间名称 temporary tablespace 临时表空间名
 
@@ -20,6 +27,26 @@ conn 用户名/密码 as sysdba 以数据库管理员的身份连接数据库
 
 查看创建的用户
     select username from dba_users;
+
+更改密码
+    alter user 用户名 identified by 新密码
+
+锁定用户
+    alter user 用户名 account lock;
+
+解锁用户
+    alter user 用户名 account unlock;
+
+删除用户
+    drop user 用户名 cascade;
+    cascade表示将用户连同其创建的东西去全部删除
+
+修改用户所属的表空间
+    alter user 用户名 default/temporary tablespace 表空间名称;
+
+
+
+
 三种权限等级
     connect
     resource
@@ -42,20 +69,6 @@ conn 用户名/密码 as sysdba 以数据库管理员的身份连接数据库
 回收权限
     revoke 权限 from 用户/public
     revoke 权限 from 角色
-
-更改密码
-    alter user 用户名 identified by 新密码
-
-锁定用户
-    alter user 用户名 account lock;
-
-解锁用户
-    alter user 用户名 account unlock;
-
-删除用户
-    drop user 用户名 cascade;
-    cascade表示将用户连同其创建的东西去全部删除
-
 
 对象：例如表
 查询所有Oracle对象权限
@@ -87,8 +100,9 @@ conn 用户名/密码 as sysdba 以数据库管理员的身份连接数据库
     revoke 角色名 from 用户
 
 
-表空间
 
+
+表空间
 创建表空间
     create tablespace test_tablespace(表空间名称) datafile 'testfile.dbf（表空间实际存放的位置）' size 10m（表空间大小）; 
 
@@ -136,13 +150,132 @@ conn 用户名/密码 as sysdba 以数据库管理员的身份连接数据库
     系统管理员：select tablespace_name from dba_tablespaces;
     用户：select tablespace_name from user_tablespaces;
 
-查看数据库所有用户的用户信息
-    dba_users;
-    select * from dba_users;
 
-查看当前用的用户信息
-    user_users;
-    select * from user_users;
+
+
+表
+创建表
+    create table 表名;
+删除表
+    drop table 表名;删除表，彻底删除表
+    truncate table 表名;清空表中的所有数据
+修改列的类型
+alter table 表名 modify(列名 数据类型 约束类型等)
+向表中增加列数据
+alter table 表名 add 列名 数据类型 约束类型等
+从表中删除列数据
+alter table 表名 drop 列名；
+
+
+语句类型
+DDL
+数据定义语言
+例如：
+    create table：创建数据库表
+    create index：创建数据库表的索引
+    drop table：删除数据库表
+    drop index：删除数据库表的索引
+    truncate：删除表中的所有行
+    alter table：更改表结构，增加，删除，修改列
+    alter table add constraint：在以有的表上增加约束
+
+DML
+数据操作语言
+例如
+    insert：添加数据到数据库
+    update：修改数据库中的数据
+    delete：删除数据库中的数据
+    select：选择（查询）数据
+
+DCL
+数据控制语言
+例如
+    grant：将权限或角色授权给用户或角色
+    revoke：从用户或角色回收权限
+    lock：对数据库特定的部分进行锁定
+
+TCL
+事务控制语言
+例如
+    commit：提交事务处理
+    rollback：事务处理回退
+    savepoint：设置保存点
+
+
+
+数据类型
+字符型
+    char：固定长度的字符串，列长度为1-2000个字节
+    varchar2：可变长度的字符串，最大长度为4000字节
+数值类型
+    声明语法
+        number[(p[,s])]
+        p表示精度（即这个数据的有效位数），s表示小数点的位数，可存储整数，浮点数等数值类型，最高精度为38位
+        number(5,0)最对可存储五位整数
+        number(5,2)存储的最大数值为999.99
+日期类型
+    date
+    oracle中如何插入date类型的数据方法如下：
+        insert into tabname(datecol) value(sysdate) ;  -- 用date值
+        insert into tabname(datecol) value(sysdate+1) ;  -- 用date值
+        insert into tabname(datecol) value(to_date('2014-02-14','yyyy-mm-dd')) ;  -- 用to_date
+        insert into tabname(datecol) value(to_date('2014-02-14 20:47:00','yyyy-mm-dd hh24:mi:ss')) ;  -- 用to_date
+        insert into tabname(datecol) value(to_date('20140214','yyyymmdd')) ;  -- 用to_date
+        insert into tabname(datecol) value(to_date('20140214204700','yyyymmddhh24miss')) ;  -- 用to_date
+LOB类型
+    CLOB：能够存储大量字符数据
+    BLOB：可以存储较大的二进制对象，如图像，视频和声音等；
+
+
+约束
+自动保持数据库完整性的一种方法，通过限制字段中的数据，记录中的数据和表之间的数据来保持数据的完整性
+完整性约束的基本语法格式
+constraint 约束名 约束类型
+表级约束：可以不与列一起，单独定义
+列级约束：必须跟在列的定义后面
+
+    主键约束：primary key constriant  表级约束
+    唯一性约束：unique constraint
+        指定一个或者多个列的值具有唯一性，以防止列中出现重复的值
+        一个表中允许多个唯一性约束存在
+        使用唯一性约束的列允许为空值
+        可以把唯一性约束定义在多个列中，需要使用表级约束定义 
+    默认约束：default constraint 
+    非空约束：not null constraint    只能是列级约束
+    检查约束：check constraint 
+        对输入列或者整个表中的值设置检查条件，以限制输入值，保证数据库的完整性
+        列级约束添加方法
+            在列的最后添加 check(列名=限制条件1 or 列名=限制条件2 )
+             例如 check(sex='男' or sex='女')，限制性别列的值只能为男或者女
+        表级约束添加方法
+            alter table 表名 add constraint 约束名（自定义） check(sex='男' or sex='女')；
+    外部键约束：foreign key constraint
+        用于建立和加强两个表数据之间的链接的一列或多列，外键约束是唯一涉及两个表关系的约束
+        列级约束
+            create 子表
+
+
+在已有的表中添加约束（表级约束）
+    alter table 表名 add constraint id_key(约束名自定义) primary key(列名);
+    检查约束：alter table 表名 add constraint 约束名（自定义） check(sex='男' or sex='女')；
+    添加非空约束要用modify语句 
+        alter table 表名 modify (列名称 not null)
+在创建表时添加约束（表级约束）
+    constraint 约束名（自定义） 约束类型(列名)；
+在创建表时添加约束（列级约束）
+    在一列的最后加上约束类型，约束名（可不加）
+
+禁用约束
+    disable constraint 约束名
+    alter table 表名 disable constraint 约束名;
+启用约束
+    enable constraint 约束名
+删除约束
+    drop constraint 约束名
+    删除主键的特殊方法
+    drop primary key;
+    删除非空约束的特殊方法
+    alter table  表名 modify 列名 null;(修改为空值)
 
 
 
