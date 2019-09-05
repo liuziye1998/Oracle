@@ -158,13 +158,24 @@ conn 用户名/密码 as sysdba 以数据库管理员的身份连接数据库
     create table 表名;
 删除表
     drop table 表名;删除表，彻底删除表
-    truncate table 表名;清空表中的所有数据
-修改列的类型
-alter table 表名 modify(列名 数据类型 约束类型等)
+    truncate table 表名;清空表中的所有数据,如果有自增字段的表，自增字段从头开始计数
+    delete from 表名；清空表中的所有数据，如果有自增字段的表，自增字段从删除前的最大数开始计数
+修改表名
+    rename 旧表名 to 新表名
 向表中增加列数据
-alter table 表名 add 列名 数据类型 约束类型等
+    alter table 表名 add 列名 数据类型 约束类型等
 从表中删除列数据
-alter table 表名 drop 列名；
+    alter table 表名 drop 列名；
+修改列的类型
+    alter table 表名 modify(列名 数据类型 约束类型等)
+修改列的值(不加where则修改整个列的值)
+    update 表名 set 列名1=值1,列名2=值2 where ...
+删除某列信息
+    delete from 表名 where ...
+修改列的名称
+    alter table 表名 rename column 旧列名 to 新列名
+查看当前用户的所有表
+    select table_name from user_tables;
 
 
 语句类型
@@ -251,8 +262,47 @@ constraint 约束名 约束类型
             alter table 表名 add constraint 约束名（自定义） check(sex='男' or sex='女')；
     外部键约束：foreign key constraint
         用于建立和加强两个表数据之间的链接的一列或多列，外键约束是唯一涉及两个表关系的约束
+        注意：设置外键约束时主表的字段必须是主键列（或唯一列），主表和子表的相应字段必须是同一类型，子表中外键字段的值必须
+            来自主表相应字段的值或者为null值
+
+        创建表时添加外键约束   
         列级约束
-            create 子表
+            create 子表 列名 references 主表 列名 (on delete cascade) 级联删除(删除主表时附带子表一起删除)
+            例如
+                先创建主表 department
+                create table department(
+                    depid varchar2(10) primary key,
+                    depename varchar2(30)
+                );
+                创建字表 student
+                create table student(
+                    sid number(8,0),
+                    name varchar2(20),
+                    ser char(2),
+                    birthday date,
+                    address varchar2(50),
+                    depid varchar2(10) references department(depid)
+                );
+        表级约束
+            constraint 约束名 foreign key(子表列名) references 主表列名 （on delete cascade）
+            例如
+                先创建主表 department
+                create table department(
+                    depid varchar2(10) primary key,
+                    depename varchar2(30)
+                );
+                创建字表 student
+                create table student(
+                    sid number(8,0),
+                    name varchar2(20),
+                    ser char(2),
+                    birthday date,
+                    address varchar2(50),
+                    depid varchar2(10),
+                    constraint 约束名 foreign key(depid) references department(depid) on delete cascade
+                ); 
+        修改表时创建外键约束
+            alter table student add constraint 约束名 foreign key(depid) references department(depid) on delete cascade;
 
 
 在已有的表中添加约束（表级约束）
@@ -276,6 +326,57 @@ constraint 约束名 约束类型
     drop primary key;
     删除非空约束的特殊方法
     alter table  表名 modify 列名 null;(修改为空值)
+
+
+
+数据字典
+    Oracle存放有关数据库信息的地方，用来描述数据，数据库数据字典是一组表和视图结构
+        数据字典中的表不能直接被访问，但可以访问数据字典中的视图
+
+    user_*(以user_开头，下同) 该视图存储了关于当前用户所拥有的对象的信息
+        常用字典及其含义
+            user_users：关于用户信息
+            user_tablespaces：关于表空间信息
+            user_tables：关于数据库表信息
+            user_view：关于视图信息
+            user_sequences：关于用户序列信息
+            user_constraints：关于用户表的约束信息
+            user_tiggers：关于触发器信息
+            user_source：关于用户存储过程信息
+
+        select * from user_users;查看当前用户下的信息
+
+    all_* 该视图存储了当前用户能够访问的对象的信息（与user_*相比all_*不需要拥有该对象，只需要具有访问该对象的权限即可）
+        select * from all_users;查看当前用户有权访问的所有的用户信息
+
+    dba_* 该视图存储了数据库中所有对象的信息(前提是当前用户具有访问这些数据库的权限)
+        select * from dba_users; 查看数据库所有用户的用户信息
+
+select查询
+    distinct：去重
+        select 列名1，列名2，…… from 表名；出去重复的行
+
+    日期列
+        日期列默认的显示格式为dd(日)-mon(月)-rr(年的后两位)
+        rr模式指定年份注意事项
+            指定日期    当前年份                格式说明                      结果年份
+            18-1-19    2019         指定年份在0-49之间,当前年份在0-49之间       2019
+            18-1-19    2050         指定年份在0-49之间,当前年份在50-99之间      2119
+            18-1-81    2019         指定年份在50-99之间,当前年份在0-49之间      1981
+            18-1-80    2050         指定年份在50-99之间,当前年份在50-99之间     2080
+
+    以简体中文显示日期，将会话的NLS_LANGUAGE参数设为SIMPLIFIED CHINESE;
+        alter session  set nls-language='SIMPLIFIED CHINESE';
+    以英语显示日期
+        alter session set nls_language='american';
+    以特定格式显示日期
+        alter session set nls_date_format='yyyy/mm/dd';
+
+    算术运算符：可用在数字和日期列上
+
+
+
+学习进度 4.2完 https://www.51zxw.net/list.aspx?page=2&cid=616
 
 
 
