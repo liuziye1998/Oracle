@@ -98,6 +98,8 @@
     静态文件pfile：静态的正文件，可以使用文本编辑器编辑
         从spfile创建pfile
             create pfile from spfile
+        从内存中创建pflie
+            create pfile from memory 
     spfile文件：动态的二进制文件，只能通过Oracle的指令修改
         alter system 指令来修改参数值
         Windows默认名称为spfile(数据库名称).oracle
@@ -115,12 +117,18 @@
                     create spfile from pfile
                 不使用pfile默认目录名
                     create spfile from pfile = 'pfile文件名'
+        从内存中创建spflie
+            create spfile from memory 
 
 
     数据库初始化参数组成及查看方法
         初始化参数由一系列的参数/参数值对组成 参数db_name='orcl',db_name为参数名，orcl为参数值
         使用show parameter 参数名 查看参数和参数值
         使用数据字典v$parameter查看参数值 select value from v$parameter where name = '参数名';
+
+    修改参数值
+        alter system set 参数名 = 参数值 （可选参数有 comment = 'text'（对参数的描述），
+    deferred(修改是否立即生效 deferred表示下次会话时生效) scope=memory只对当前实例生效|spfile下次连接时生效|both前面两个都生效）
 
     oracle11g中默认使用spfile启动数据库，此时pfile至是一个模板信息，不可用，必须创建一个可用的pfile文件才能使用
         create pfile from spfile
