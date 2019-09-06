@@ -1,0 +1,132 @@
+启动数据库
+    sqlplus /nolog 没有任何连接状态
+    conn /as sysdba 以数据库管理员身份连接
+        三种连接模式
+            nomount状态：只打开数据库实例
+            mount状态：根据参数文件中控制文件的位置，找到并打开控制文件，读取各种参数信息
+            open状态：打开数据文件并进行一系列的检查工作，这些检查工作用于数据恢复
+    startup nomount
+        从mount状态切换到其他状态
+            alter database mount;切换到mount状态
+            alter database open;切换到open状态
+
+关闭数据库
+    1.SHUTDOWN ABORT
+		此模式用于紧急情况，如其他形式的关闭方式都未能成功时。这种模式的关闭是最快的。但是，随后打开该数据库可能时间会显著增加因为必须执
+	行实例恢复以使数据文件一致
+		注意因为 SHUTDOWN ABORT 不对打开的数据文件执行检查点操作，所以在重新打开数据库之前，必须进行实例恢复
+	2.SHUTDOWN IMMDEIATE(常用关闭方式)
+		这种模式通常是除 SHUTDOWN ABORT 之外最快的关闭模式了。Oracle 数据库终止任何正在执行的 SQL 语句，并断开用户连接。所有活动事务都将
+	终止，并回滚所有未提交的更改。
+	3.SHUTDOWN TRANSACTIONAL
+		这种模式可以防止用户启动新事务，但在关闭之前会等待所有的当前事务完成。这种模式可能会花费相当长的时间，这取决于当前事务的特征。
+	4.SHUTDIWN NORMAL（默认连接方式）
+		这是默认的关闭模式。在关闭之前数据库会等待所有连接的用户断开连接。
+
+移动控制文件，磁盘故障时
+    使用spfile启动数据库时如何移动控制文件
+    1 获取控制文件名
+        select status,name from v$controlfile;
+    2 使用alter system set指令修改spfile中控制文件名
+            alter system set control_files='C:\oracle\backup\CONTROL01.CTL'（新地址）,
+            'C:\oracle\backup\CONTROL02.CTL' scope=spfile;修改信息记录在spfile中
+    3 关闭数据库
+        shutdown immediate 
+    4 控制文件到迁移目录
+        host copy D:\APP\SUNGL\ORADATA\ORACLE\CONTROL01.CTL(原地址) C:\oracle\backup\CONTROL01.CTL(新地址)
+        host copy D:\APP\SUNGL\ORADATA\ORACLE\CONTROL01.CTL C:\oracle\backup\CONTROL02.CTL
+    5 重启数据库
+        startup
+    6 验证修改结果
+
+备份控制文件    备份文件不是最新的，在恢复数据库时最好不要使用备份文件以防数据丢失，
+    方法一
+        alter database backup controlfile to '备份后的控制文件所在地址，以.ora结尾';
+    方法二(将控制文件备份到追踪文件)
+        查看参数sql_trace是否为true(该参数默认为false,备份完成之后将值重新设为false，以避免不必要的性能浪费);
+            show parameter sql_trace;
+            设置为true
+            alter system set sql_trace = true ;
+        执行备份
+            alter database backup controlfile to trace;
+        查看备份目录
+            show parameter user_dump_dest;
+        打开上面的目录去寻找备份文件
+            找到alter_oracle,查看最后几行找到backup，backup所指向的就是备份的控制文件的名称
+
+恢复控制文件
+    部分控制文件丢失或损坏的情况
+        若数据库正在运行，先关闭数据库，再将完好的控制文件复制到已丢失或出错的控制文件的位置，要将新文件的名称和旧文件的名称保持
+    一致
+        若存储控制文件的目录结构也被破坏，则需要重新建立一个目录用于存放控制文件，并为该控制文件命名，此时需要修改数据库初始化参数
+    文件文件中控制文件的位置信息。
+            使用alter system set指令修改spfile中控制文件信息
+                （alter system set control_files='C:\oracle\backup\CONTROL01.CTL','C:\oracle\backup\CONTROL02.CTL' 
+            scope=spfile;修改信息记录在spfile中）
+
+    控制文件全部丢失或损坏    此情况使用备份的控制文件来重建控制文件
+        关闭数据库，将备份的数据文件复制到损坏的控制文件的位置，并将文件名修改为已损坏的文件名
+            打开数据库到mount状态startup mount;再切换到open状态 alter database open
+        此方法会造成一定程度的数据丢失，勤备份！
+
+    通过跟踪文件重建控制文件
+        跟踪文件中记录了用于建立控制文件的sql语句适当的编辑跟踪文件，然后用sql指令重建控制文件，创建控制文件成功后要进行数据库恢复
+    即recover database 并在打开数据库后创建一个临时表空间用于数据排列
+
+控制文件
+    是一个二进制文件，记录了数据库的状态信息，如重做日志文件与数据文件的名字和位置，归档重做日志的历史等，归档日志的历史记录会让该
+文件逐渐变大，但其大小不会超过64MB，控制文件和数据库是一一对应的关系
+    查看控制文件位置信息的方法
+        select value from V$parameter where name='control_files';
+        show parameter control_files;
+    查看控制文件所存储的信息
+        select * from V$controlfile_record_section;
+    
+    常用的从控制文件中读取数据的数据字典
+        V$database：数据库信息
+        V$instance：实例信息
+        V$tablespace：表空间信息
+        V$backup：备份信息
+        V$tempfile：临时信息
+        V$archive：归档信息
+        V$log：日志信息
+        V$logfile：日志文件
+        V$loglist
+        V$archived_log：归档日志信息
+
+参数文件
+    静态文件pfile：静态的正文件，可以使用文本编辑器编辑
+        从spfile创建pfile
+            create pfile from spfile
+    spfile文件：动态的二进制文件，只能通过Oracle的指令修改
+        alter system 指令来修改参数值
+        Windows默认名称为spfile(数据库名称).oracle
+        unix默认名称为spfile数据库名.ora
+
+        show parameter spfile 
+            1 查看动态参数文件的位置
+            2 若value值为空则为pfile启动反之则为spfile启动
+
+        从pfile创建spfile
+            先从spfile创建一个pfile
+                create pfile from spfile
+            修改pfile之后再创建spfile
+                使用pfile默认目录名
+                    create spfile from pfile
+                不使用pfile默认目录名
+                    create spfile from pfile = 'pfile文件名'
+
+
+    数据库初始化参数组成及查看方法
+        初始化参数由一系列的参数/参数值对组成 参数db_name='orcl',db_name为参数名，orcl为参数值
+        使用show parameter 参数名 查看参数和参数值
+        使用数据字典v$parameter查看参数值 select value from v$parameter where name = '参数名';
+
+    oracle11g中默认使用spfile启动数据库，此时pfile至是一个模板信息，不可用，必须创建一个可用的pfile文件才能使用
+        create pfile from spfile
+        静态文件的默认位置在Oracle安装目录下的admin/oracle_sid（数据库的名称）/pfile文件夹下
+
+
+        
+
+
