@@ -237,6 +237,41 @@ LOB类型
     CLOB：能够存储大量字符数据
     BLOB：可以存储较大的二进制对象，如图像，视频和声音等；
 
+空值 null
+    NVL空值转换函数,使空值可以进行运算，格式如下
+        NVL(expr1,expr2)，如果expr1为空值，则返回expr2的值，否则返回expr2的值，表达式expr1和expr2的数据类型必须相同，可以为数字类型，
+        字符类型和日期类型 
+    NVL2是NVL的增强，格式为
+        NVL(expr1,expr2,expr3),若expr1为空值，则返回expr3的值，若expr1不为空，则返回exper2的值，其中expr1可以为任意数据类型，expr2，3
+        为除long数据类型以外的任意数据类型
+    NULLIF函数，比较两个表达式
+        NULLIF(expr1，expr2)，若expr1和expr2值相等则返回空值null，若不相等则返回expr1的值，
+    COALESCE函数，返回该函数中第一个不为null的表达式的值
+        COALESCE(expr1,expr2,...exprn)
+        
+
+分组函数：
+    group by (列名)，依据某个列进行分组
+    having 对分组函数进行限制
+        select max(avg(列名)) min(avg(列名)) from 表  having 条件表达式 group by 列名;
+    分组后对表中的多个行进行操作
+        AVG：计算某列中某组分组后，每组的平均值用于计算数字类型
+            select AVG(列名) "别名/临时名称(可以不命名)" from 表;
+        SUM：计算某列中某组分组后，每组的和值用于计算数字类型
+            select SUM(列名) "别名/临时名称(可以不命名)" from 表;
+        MAX：计算最大值，可操作数字型，字符型和日期型数据
+            select MAX(列名) "别名/临时名称(可以不命名)" from 表;
+        MIN：计算最小值，可操作数字型，字符型和日期型数据
+            select MIN(列名) "别名/临时名称(可以不命名)" from 表;
+        COUNT：行计数
+            返回进过计算后返回的行数，包括空行和重复行
+            select count(列名) "别名/临时名称(可以不命名)" from 表;
+            使用包含distinct的count函数，去重复的行数据之后计数
+            select count(distinct 列名) "别名/临时名称(可以不命名)" from 表;
+        嵌套使用：
+            select max(avg(列名)) min(avg(列名)) from 表 group by 列名;
+
+
 
 约束
 自动保持数据库完整性的一种方法，通过限制字段中的数据，记录中的数据和表之间的数据来保持数据的完整性
