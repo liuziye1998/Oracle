@@ -104,8 +104,9 @@ conn 用户名/密码 as sysdba 以数据库管理员的身份连接数据库
 
 表空间
 创建表空间
-    create tablespace test_tablespace(表空间名称) datafile 'testfile.dbf（表空间实际存放的位置）' size 10m（表空间大小）; 
-
+    1.create tablespace test_tablespace(表空间名称) datafile 'testfile.dbf（表空间实际存放的位置）' size 10m（表空间大小）; 
+    2.create tablespace test_tablespace(表空间名称) datafile 'testfile.dbf（表空间实际存放的位置）' 
+    (extent management local默认为本地管理表空间，可不输入) size 10m（表空间大小） uniform size 1m(数据库扩展默认大小);
 创建临时表空间
     create temporary tablespace temp_tablespace tempfile 'tempfile.dbf' size 10m;   
 
@@ -117,8 +118,22 @@ conn 用户名/密码 as sysdba 以数据库管理员的身份连接数据库
         注意：不能删除表空间的第一个创建的数据文件，如果需要删除，就需要删除整个的表空间
 
 删除表空间
-    drop tablespace 表空间名 （可选参数including contents）
-    drop tablespace 表空间名 (including contects 表示连同表空间的数据文件一起删除)
+    drop tablespace 表空间名 （可选参数including contents,add datafiles,cascade constraints）
+    drop tablespace 表空间名 including contects 删除表空间中的所有区段(EXTENTS)  
+    drop tablespace 表空间名 add datafiles 删除表空间中的数据文件，文件格式为oracle格式
+    drop tablespace 表空间名 cascade constraints删除和该表空间中的表相关的引用完整性约束
+
+修改表空间大小
+    1.向表空间增加数据文件
+        alter tablespace 表空间名称 add datafile(注意是datafile不是tempfile) '数据文件名称以.dbf结尾' size 10m;
+    2.创建时使用autoextend on 语句使表空间自动扩展
+        create tablespace test_tablespace(表空间名称) datafile 'testfile.dbf（表空间实际存放的位置）' 
+        (extent management local默认为本地管理表空间，可不输入) size 10m（表空间大小） autoextend on;
+    3.创建之后修改为autoextend on自动扩展
+        alter database datafile 文件名 autoextend on ;
+    4.修改数据文件大小，即重新设置表空间中某个数据文件的大小
+        alter database datafile 数据文件路径 resize 100m;
+
 
 修改用户所属的表空间
     alter user 用户名 default/temporary tablespace 表空间名称;
@@ -134,12 +149,21 @@ conn 用户名/密码 as sysdba 以数据库管理员的身份连接数据库
     select status from dba_tablespaces where tablespace_name = '表空间名（名称必须大写）';
         查看系统管理员表空间中user的状态
 
+    以下情况需要将表空间设为脱机状态
+        允许用户访问数据库的一部分，某些表空间不允许访问
+        执行脱机的表空间备份
+        在数据库打开时，恢复表空间或表空间中的数据文件
+        在数据库打开时，移动表空间中的数据文件
+
 2.只读和可读写状态
     read only 只读状态
     read write  读写状态
     alter tablespace 表空间名称 read only/read write;
     alter tablespace user read only/read write
         将表空间user设为只读或者读写状态
+
+查看表空间
+    select tablespace_name from dba_tablespaces;
 查看表空间存储的位置
     dba_data_files 存放数据库数据文件
     select file_name from dba_data_files where tablespace_name = '表空间名（名称必须大写）';
@@ -158,6 +182,8 @@ conn 用户名/密码 as sysdba 以数据库管理员的身份连接数据库
         从mount状态切换到其他状态
             alter database mount;切换到mount状态
             alter database open;切换到open状态
+
+
 
 关闭数据库
     1.SHUTDOWN ABORT
@@ -269,7 +295,6 @@ conn 用户名/密码 as sysdba 以数据库管理员的身份连接数据库
         从内存中创建spflie
             create spfile from memory 
 
-
     数据库初始化参数组成及查看方法
         初始化参数由一系列的参数/参数值对组成 参数db_name='orcl',db_name为参数名，orcl为参数值
         使用show parameter 参数名 查看参数和参数值
@@ -283,7 +308,77 @@ conn 用户名/密码 as sysdba 以数据库管理员的身份连接数据库
         create pfile from spfile
         静态文件的默认位置在Oracle安装目录下的admin/oracle_sid（数据库的名称）/pfile文件夹下
 
+重做日志文件信息
 
+    添加一个重做日志组
+        alter database add logfile 日志组名称 ('日志组文件存放路径以.log结尾','') size 10m;
+    向重做日志组中添加成员
+        alter database add logfile member '文件路径以.log结尾' to 组名,'文件路径以.log结尾' to 组名;
+        
+    删除一个重做日志组(当前正在使用的日志组无法删除)
+        alter database drop logfile 日志组名称;
+    删除重做日志组成员(当前正在使用的日志组成员无法删除)
+        alter database drop logfile member '文件路径以.log结尾' to 组名,'
+    删除重做日志文件中的所有数据
+        alter database clear logfile 组名;
+
+    强制启动检查点
+        alter system checkponit;
+    切换正在使用的日志组
+        alter system switch logfile;
+    更改日志组的大小
+        通过删除日志文件所在的日志组，然后重建日志文件，用这种间接的方式更改日志组的大小
+
+    V$log查看重做日志信息
+        select * from V$log;
+    V$lofile查看重做日志存放位置信息
+        select * from V$logfile
+    判断数据库是否处于归档模式
+        archive log list;
+    设置数据库处于归档模式方法
+        1.关闭数据库
+            shutdown IMMDEIATE
+        2.启动数据库到mount状态
+            startup mount;
+        3.设置数据库为归档模式
+            alter database archivelog;
+        4.打开数据库到
+            alter database open;
+    
+
+
+还原段
+    系统还原段为系统表空间使用，非系统还原段为用户创建的表空间使用
+
+    自动还原段管理
+        undo_managment：说明还原段的管理方式
+        undo_tablespace：说明还原表空间的名字
+    创建还原表空间
+        create undo tablespace 还原表空间名 datafile '文件路径以.dbf结尾' size 100m autoextend on ;
+    向表空间中添加数据文件
+        alter tablespace 表空间名 add datafile '文件路径以.dbf结尾' size 10m;
+
+    删除还原表空间（要删除的表空间不应处于使用或工作状态）
+        drop tablespace 表空间名
+    
+    重命名还原表空间
+        alter tablespace 旧名 rename to 新名
+    设置还原表空间为自动扩展
+        alter database datafile '文件路径以.dbf结尾' autoextend on;
+
+    查看还原表空间信息
+        select * from dba_tablespaces where contents='UNDO';
+    查看当前使用的还原段和相关参数
+        show parameter undo 
+    切换还原表空间
+        alter system set undo_tablespace=还原表空间名
+
+    undo_retention参数：
+        该参数是一个时间值，说明当事务提交完成之后，在多长时间内此数据仍然存在于还原表空间中，如果时间过长且修改
+        数据的事务很多，会造成还原表空间的不足。
+    修改undo_retention的值
+        alter system set undo_retention=1200（默认单位为秒）;
+        通过show parameter undo 参数验证结果
         
 
 
