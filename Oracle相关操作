@@ -1,0 +1,512 @@
+sqlplus /nolog 只进入到SQLplus界面，并没有连接数据库
+
+conn 用户名/密码 连接到数据库中
+
+conn 用户名/密码 as sysdba 以数据库管理员的身份连接数据库
+
+用户
+    给用户名解锁
+        alter user 用户名 account unlock
+    锁定用户
+        alter user 用户名 account lock;
+    解锁用户
+        alter user 用户名 account unlock;
+    
+    创建用户
+        create user 用户名 identified by 密码 default tablespace 表空间名称 temporary tablespace 临时表空间名
+
+    修改用户信息
+        alter user 用户名 identified by 密码 default tablespace 表空间名称 temporary tablespace 临时表空间名
+    修改用户所属的表空间
+        alter user 用户名 default/temporary tablespace 表空间名称;
+    更改密码
+        alter user 用户名 identified by 新密码
+
+    删除用户
+        drop user 用户名 cascade;
+        cascade表示将用户连同其创建的东西去全部删除
+
+    查看当前用户的所有表
+        select table_name from user_tables;
+    查看创建的用户
+        select username from dba_users;
+    查看数据库所有用户的用户信息
+        dba_users;
+        select * from dba_users;
+    查看当前用的用户信息
+        user_users;
+        select * from user_users;
+    
+
+
+
+
+三种权限等级
+    connect
+    resource
+    dba
+
+查询系统权限
+    select * from system_privilege_map;
+    常用的有以下权限
+        create session：创建会话
+        create sequence：创建序列
+        create table：创建表
+        create user：创建用户
+        create view：创建视图
+        alter user：更改用户
+        drop user：删除用户 
+
+给用户授权
+    grant 权限,权限2 to 用户1/角色1，用户2/角色2，public（表示全部用户）
+
+回收权限
+    revoke 权限 from 用户/public
+    revoke 权限 from 角色
+
+对象：例如表
+查询所有Oracle对象权限
+    select * from table__privilege_map;
+
+将操作对象的某些权限/所有权限授权给用户或者角色
+    grant 对象权限/所有对象权限 on 对象名 to 用户/全部用户/角色
+        对象名要指定清楚，比如某某用户的某某表 system.temp system用户下的temp表     
+
+将对象的相关权限撤销
+    revoke 对象权限 on 对象名 from 用户/全部用户/角色
+
+
+角色：可以理解为多个权限的集合
+
+    创建角色
+        create role 角色
+
+    删除角色
+        drop rolo 角色名
+
+    角色授权
+        grant 权限 to 角色
+
+    将角色赋予用户
+        grant 角色 to 用户
+
+    将用户的角色撤销
+        revoke 角色名 from 用户
+
+
+
+
+表空间
+创建表空间
+    create tablespace test_tablespace(表空间名称) datafile 'testfile.dbf（表空间实际存放的位置）' 
+    (extent management local默认为本地管理表空间，可不输入) size 10m（表空间大小） uniform size 1m(数据库扩展默认大小); 
+创建临时表空间
+    create temporary tablespace temp_tablespace tempfile 'tempfile.dbf' size 10m;   
+创建还原表空间
+    create undo tablespace 表空间名 datafile 'testfile.dbf（表空间实际存放的位置）' size 10m（表空间大小）
+创建大文件表空间
+    create bigfile tablespace 表空间名 datafile 'testfile.dbf（表空间实际存放的位置）' size 10m（表空间大小）
+切换临时表空间
+    alter database default temporary tablespace 临时表空间名
+
+向表空间增加数据文件
+    alter tablespace 表空间名称 add datafile(注意是datafile不是tempfile) '数据文件名称以.dbf结尾' size 10m;
+
+从表空间内删除数据文件
+    alter tablespace 表空间名称 drop datafile '数据文件名称'
+        注意：不能删除表空间的第一个创建的数据文件，如果需要删除，就需要删除整个的表空间
+
+删除表空间
+    drop tablespace 表空间名 （可选参数including contents）
+    drop tablespace 表空间名 (including contects 表示连同表空间的数据文件一起删除)
+
+修改用户所属的表空间
+    alter user 用户名 default/temporary tablespace 表空间名称;
+修改表空间的状态
+ 1.连接或脱机状态
+    alter tablespace 表空间名称 online/offline:
+        online：表示联机状态
+        offline：表示脱机状态
+    alter tablespace user online/offline;
+        将user表空间设置为联机或者脱机状态
+    select status from dba_tablespaces where tablespace_name = '表空间名（名称必须大写）';
+        查看系统管理员表空间中user的状态
+
+2.只读和可读写状态
+    read only 只读状态
+    read write  读写状态
+    alter tablespace 表空间名称 read only/read write;
+    alter tablespace user read only/read write
+        将表空间user设为只读或者读写状态
+
+查看表空间存储的位置
+    dba_data_files 存放数据库数据文件
+    select file_name from dba_data_files where tablespace_name = '表空间名（名称必须大写）'
+查看临时表空间存储位置
+    select file_name from dba_temp_files where tablespace_name = '表空间名（名称必须大写）';
+查询所有表空间的详细信息
+    系统管理员：select tablespace_name from dba_tablespaces;
+    用户：select tablespace_name from user_tablespaces;
+
+
+
+
+表
+创建表
+    create table 表名;
+删除表
+    drop table 表名;删除表，彻底删除表
+    truncate table 表名;清空表中的所有数据,如果有自增字段的表，自增字段从头开始计数
+    delete from 表名；清空表中的所有数据，如果有自增字段的表，自增字段从删除前的最大数开始计数
+修改表名
+    rename 旧表名 to 新表名
+向表中增加列数据
+    alter table 表名 add 列名 数据类型 约束类型等
+从表中删除列数据
+    alter table 表名 drop 列名；
+修改列的类型
+    alter table 表名 modify(列名 数据类型 约束类型等)
+修改列的值(不加where则修改整个列的值)
+    update 表名 set 列名1=值1,列名2=值2 where ...
+删除某列信息
+    delete from 表名 where ...
+修改列的名称
+    alter table 表名 rename column 旧列名 to 新列名
+查看当前用户的所有表
+    select table_name from user_tables;
+
+
+语句类型
+DDL
+数据定义语言
+例如：
+    create table：创建数据库表
+    create index：创建数据库表的索引
+    drop table：删除数据库表
+    drop index：删除数据库表的索引
+    truncate：删除表中的所有行
+    alter table：更改表结构，增加，删除，修改列
+    alter table add constraint：在以有的表上增加约束
+
+DML
+数据操作语言
+例如
+    insert：添加数据到数据库
+    update：修改数据库中的数据
+    delete：删除数据库中的数据
+    select：选择（查询）数据
+
+DCL
+数据控制语言
+例如
+    grant：将权限或角色授权给用户或角色
+    revoke：从用户或角色回收权限
+    lock：对数据库特定的部分进行锁定
+
+TCL
+事务控制语言
+例如
+    commit：提交事务处理
+    rollback：事务处理回退
+    savepoint：设置保存点
+
+
+
+数据类型
+字符型
+    char：固定长度的字符串，列长度为1-2000个字节
+    varchar2：可变长度的字符串，最大长度为4000字节
+数值类型
+    声明语法
+        number[(p[,s])]
+        p表示精度（即这个数据的有效位数），s表示小数点的位数，可存储整数，浮点数等数值类型，最高精度为38位
+        number(5,0)最对可存储五位整数
+        number(5,2)存储的最大数值为999.99
+日期类型
+    date
+    oracle中如何插入date类型的数据方法如下：
+        insert into tabname(datecol) value(sysdate) ;  -- 用date值
+        insert into tabname(datecol) value(sysdate+1) ;  -- 用date值
+        insert into tabname(datecol) value(to_date('2014-02-14','yyyy-mm-dd')) ;  -- 用to_date
+        insert into tabname(datecol) value(to_date('2014-02-14 20:47:00','yyyy-mm-dd hh24:mi:ss')) ;  -- 用to_date
+        insert into tabname(datecol) value(to_date('20140214','yyyymmdd')) ;  -- 用to_date
+        insert into tabname(datecol) value(to_date('20140214204700','yyyymmddhh24miss')) ;  -- 用to_date
+LOB类型
+    CLOB：能够存储大量字符数据
+    BLOB：可以存储较大的二进制对象，如图像，视频和声音等；
+
+空值 null
+    NVL空值转换函数,使空值可以进行运算，格式如下
+        NVL(expr1,expr2)，如果expr1为空值，则返回expr2的值，否则返回expr2的值，表达式expr1和expr2的数据类型必须相同，可以为数字类型，
+        字符类型和日期类型 
+    NVL2是NVL的增强，格式为
+        NVL(expr1,expr2,expr3),若expr1为空值，则返回expr3的值，若expr1不为空，则返回exper2的值，其中expr1可以为任意数据类型，expr2，3
+        为除long数据类型以外的任意数据类型
+    NULLIF函数，比较两个表达式
+        NULLIF(expr1，expr2)，若expr1和expr2值相等则返回空值null，若不相等则返回expr1的值，
+    COALESCE函数，返回该函数中第一个不为null的表达式的值
+        COALESCE(expr1,expr2,...exprn)
+        
+
+分组函数：
+    group by (列名)，依据某个列进行分组
+    having 对分组函数进行限制
+        select max(avg(列名)) min(avg(列名)) from 表  having 条件表达式 group by 列名;
+    分组后对表中的多个行进行操作
+        AVG：计算某列中某组分组后，每组的平均值用于计算数字类型
+            select AVG(列名) "别名/临时名称(可以不命名)" from 表;
+        SUM：计算某列中某组分组后，每组的和值用于计算数字类型
+            select SUM(列名) "别名/临时名称(可以不命名)" from 表;
+        MAX：计算最大值，可操作数字型，字符型和日期型数据
+            select MAX(列名) "别名/临时名称(可以不命名)" from 表;
+        MIN：计算最小值，可操作数字型，字符型和日期型数据
+            select MIN(列名) "别名/临时名称(可以不命名)" from 表;
+        COUNT：行计数
+            返回进过计算后返回的行数，包括空行和重复行
+            select count(列名) "别名/临时名称(可以不命名)" from 表;
+            使用包含distinct的count函数，去重复的行数据之后计数
+            select count(distinct 列名) "别名/临时名称(可以不命名)" from 表;
+        嵌套使用：
+            select max(avg(列名)) min(avg(列名)) from 表 group by 列名;
+
+
+
+约束
+自动保持数据库完整性的一种方法，通过限制字段中的数据，记录中的数据和表之间的数据来保持数据的完整性
+完整性约束的基本语法格式
+constraint 约束名 约束类型
+表级约束：可以不与列一起，单独定义
+列级约束：必须跟在列的定义后面
+
+    主键约束：primary key constriant  表级约束
+    唯一性约束：unique constraint
+        指定一个或者多个列的值具有唯一性，以防止列中出现重复的值
+        一个表中允许多个唯一性约束存在
+        使用唯一性约束的列允许为空值
+        可以把唯一性约束定义在多个列中，需要使用表级约束定义 
+    默认约束：default constraint 
+    非空约束：not null constraint    只能是列级约束
+    检查约束：check constraint 
+        对输入列或者整个表中的值设置检查条件，以限制输入值，保证数据库的完整性
+        列级约束添加方法
+            在列的最后添加 check(列名=限制条件1 or 列名=限制条件2 )
+             例如 check(sex='男' or sex='女')，限制性别列的值只能为男或者女
+        表级约束添加方法
+            alter table 表名 add constraint 约束名（自定义） check(sex='男' or sex='女')；
+    外部键约束：foreign key constraint
+        用于建立和加强两个表数据之间的链接的一列或多列，外键约束是唯一涉及两个表关系的约束
+        注意：设置外键约束时主表的字段必须是主键列（或唯一列），主表和子表的相应字段必须是同一类型，子表中外键字段的值必须
+            来自主表相应字段的值或者为null值
+
+        创建表时添加外键约束   
+        列级约束
+            create 子表 列名 references 主表 列名 (on delete cascade) 级联删除(删除主表时附带子表一起删除)
+            例如
+                先创建主表 department
+                create table department(
+                    depid varchar2(10) primary key,
+                    depename varchar2(30)
+                );
+                创建字表 student
+                create table student(
+                    sid number(8,0),
+                    name varchar2(20),
+                    ser char(2),
+                    birthday date,
+                    address varchar2(50),
+                    depid varchar2(10) references department(depid)
+                );
+        表级约束
+            constraint 约束名 foreign key(子表列名) references 主表列名 （on delete cascade）
+            例如
+                先创建主表 department
+                create table department(
+                    depid varchar2(10) primary key,
+                    depename varchar2(30)
+                );
+                创建字表 student
+                create table student(
+                    sid number(8,0),
+                    name varchar2(20),
+                    ser char(2),
+                    birthday date,
+                    address varchar2(50),
+                    depid varchar2(10),
+                    constraint 约束名 foreign key(depid) references department(depid) on delete cascade
+                ); 
+        修改表时创建外键约束
+            alter table student add constraint 约束名 foreign key(depid) references department(depid) on delete cascade;
+
+
+在已有的表中添加约束（表级约束）
+    alter table 表名 add constraint id_key(约束名自定义) primary key(列名);
+    检查约束：alter table 表名 add constraint 约束名（自定义） check(sex='男' or sex='女')；
+    添加非空约束要用modify语句 
+        alter table 表名 modify (列名称 not null)
+在创建表时添加约束（表级约束）
+    constraint 约束名（自定义） 约束类型(列名)；
+在创建表时添加约束（列级约束）
+    在一列的最后加上约束类型，约束名（可不加）
+
+禁用约束
+    disable constraint 约束名
+    alter table 表名 disable constraint 约束名;
+启用约束
+    enable constraint 约束名
+删除约束
+    drop constraint 约束名
+    删除主键的特殊方法
+    drop primary key;
+    删除非空约束的特殊方法
+    alter table  表名 modify 列名 null;(修改为空值)
+
+
+
+数据字典
+    Oracle存放有关数据库信息的地方，用来描述数据，数据库数据字典是一组表和视图结构
+        数据字典中的表不能直接被访问，但可以访问数据字典中的视图
+
+    user_*(以user_开头，下同) 该视图存储了关于当前用户所拥有的对象的信息
+        常用字典及其含义
+            user_users：关于用户信息
+            user_tablespaces：关于表空间信息
+            user_tables：关于数据库表信息
+            user_view：关于视图信息
+            user_sequences：关于用户序列信息
+            user_constraints：关于用户表的约束信息
+            user_tiggers：关于触发器信息
+            user_source：关于用户存储过程信息
+
+        select * from user_users;查看当前用户下的信息
+
+    all_* 该视图存储了当前用户能够访问的对象的信息（与user_*相比all_*不需要拥有该对象，只需要具有访问该对象的权限即可）
+        select * from all_users;查看当前用户有权访问的所有的用户信息
+
+    dba_* 该视图存储了数据库中所有对象的信息(前提是当前用户具有访问这些数据库的权限)
+        select * from dba_users; 查看数据库所有用户的用户信息
+
+select查询
+    distinct：去重
+        select 列名1，列名2，…… from 表名；出去重复的行
+
+    日期列
+        日期列默认的显示格式为dd(日)-mon(月)-rr(年的后两位)
+        rr模式指定年份注意事项
+            指定日期    当前年份                格式说明                      结果年份
+            18-1-19    2019         指定年份在0-49之间,当前年份在0-49之间       2019
+            18-1-19    2050         指定年份在0-49之间,当前年份在50-99之间      2119
+            18-1-81    2019         指定年份在50-99之间,当前年份在0-49之间      1981
+            18-1-80    2050         指定年份在50-99之间,当前年份在50-99之间     2080
+
+    以简体中文显示日期，将会话的NLS_LANGUAGE参数设为SIMPLIFIED CHINESE;
+        alter session  set nls-language='SIMPLIFIED CHINESE';
+    以英语显示日期
+        alter session set nls_language='american';
+    以特定格式显示日期
+        alter session set nls_date_format='yyyy/mm/dd';
+
+    算术运算符：可用在数字和日期列上
+
+
+PL/SQL语言
+    一种过程化语言，实现标准SQL语言无法实现的逻辑运算
+    PL/SQL语言采用块结构，每块包含4个不同的区域：块头区，声明区，执行区，异常区
+        块头
+            包含程序单元的类型（如过程或函数等）调用该程序单元的任意参数
+            program_type(类型) program_name(名称)
+            program_type包括function,procedure（表示创建存储过程）,package
+        执行区
+            完成该程序单元的行为
+            以关键字begin开始，以end结束
+        异常区
+            是PL/SQL的最后一个区，是可选项，如果定义了异常区，他只能出现在end关键字之前
+    流程控制
+        if...then...else;
+            if 条件一
+            then
+                语句一
+            else
+                语句二
+            end if(满足条件一，执行语句一否则执行条件二)
+        case;
+            case 表达式1
+                when 条件
+                    then 语句
+                when 条件
+                    then 语句
+                when 条件
+                    then 语句
+                    end case (条件的值和表达式的值相等时，才执行其后的语句)
+        goto;
+            流程跳转语句
+            goto <<表达式>> 跳转到指定的<<>>位置执行
+        loop...end...loop;
+            循环
+            loop
+                语句
+                exit(结束标识符)  when 条件;
+            end loop;(语句满足条件时结束循环)
+        for...loop;
+            指定loop的循环次数
+                for counter low...high
+                loop
+                    语句
+                END loop(循环次数为high-low的差值)
+        while...loop;
+            while 条件
+            loop
+                语句
+            end loop(循环执行到语句不满足条件结束)
+
+
+函数(待完善)
+    字符处理函数lower()
+    数学运算函数count()
+    自定义函数语法
+        create(or replace表示替换已有的函数，可选项) function 函数名 (参数名(in给函数输入参数)(out输出参数) 参数类型)
+         return 数据类型 (返回的数据类型)
+         函数体
+        例创建一个求圆面积的函数
+            create or replace function area(f float)
+            return float
+            is(后面接声明变量内容)
+            begin
+            return 3.14*(f*f);
+            end area;
+            /
+        查询函数是否创建成功
+            select * from user_objects where object_type='FUNCTION';
+        调用函数
+            select area(4) from dual;
+
+
+游标
+    可以看成指向记录集合的指针，它可以在集合记录中移动以访问每条记录
+    创建方法
+        cursor 游标名 is sql语句(和游标关联的语句)
+    打开方法(不能重复打开)
+        open 游标名
+        打开游标的内部行为就是执行sql语句
+    取游标
+        fetch 游标名 into 变量名 [,变量名]将游标遍历的数据存入一组变量中，变量的数量和类型要对应创建时的数据
+    游标取数据
+        loop 
+        fetch 游标名 into 变量1,变量2,变量3
+        exit when 循环结束条件（通常为游标名%notfound,表示没有找到游标名）;
+        DBMS_OUTPUT.put_line('变量名 is'||你想要显示的名称,'变量名 is'||你想要显示的名称,'变量名 is'||你想要显示的名称,...);
+        end loop;
+    关闭游标
+        close 游标名称
+    游标的属性
+        %isopen：判断游标是否打开
+        %found：游标发现数据
+        %notfound：游标没有发现数据
+        %rowcount：游标可以遍历的记录的数量
+
+    
+
+
+学习进度 4.2完 https://www.51zxw.net/list.aspx?page=2&cid=616
+
+
+
