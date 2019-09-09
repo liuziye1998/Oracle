@@ -502,7 +502,8 @@ PL/SQL语言
         %found：游标发现数据
         %notfound：游标没有发现数据
         %rowcount：游标可以遍历的记录的数量
-
+    执行包含游标的存储过程
+        execute curcortest
     
 
 
