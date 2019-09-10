@@ -173,6 +173,9 @@ conn 用户名/密码 as sysdba 以数据库管理员的身份连接数据库
 查询所有表空间的详细信息
     系统管理员：select tablespace_name from dba_tablespaces;
     用户：select tablespace_name from user_tablespaces;
+
+
+启动数据库
     conn /as sysdba 以数据库管理员身份连接
         三种连接模式
             nomount状态：只打开数据库实例
@@ -182,6 +185,8 @@ conn 用户名/密码 as sysdba 以数据库管理员的身份连接数据库
         从mount状态切换到其他状态
             alter database mount;切换到mount状态
             alter database open;切换到open状态
+    从静态文件启动数据库
+        startup pfile='文件所在路径'
 
 
 
@@ -190,7 +195,7 @@ conn 用户名/密码 as sysdba 以数据库管理员的身份连接数据库
 		此模式用于紧急情况，如其他形式的关闭方式都未能成功时。这种模式的关闭是最快的。但是，随后打开该数据库可能时间会显著增加因为必须执
 	行实例恢复以使数据文件一致
 		注意因为 SHUTDOWN ABORT 不对打开的数据文件执行检查点操作，所以在重新打开数据库之前，必须进行实例恢复
-	2.SHUTDOWN IMMDEIATE(常用关闭方式)
+	2.SHUTDOWN IMMEDIATE(常用关闭方式)
 		这种模式通常是除 SHUTDOWN ABORT 之外最快的关闭模式了。Oracle 数据库终止任何正在执行的 SQL 语句，并断开用户连接。所有活动事务都将
 	终止，并回滚所有未提交的更改。
 	3.SHUTDOWN TRANSACTIONAL
