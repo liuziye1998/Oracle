@@ -1,0 +1,50 @@
+Oracle 32004问题解决方法
+    show parameter background_dump_dest;找到日志所在路径
+    查看日志alter_orcl.log
+        Deprecated system parameters with specified values:
+
+            remote_os_authent (此处为问题所在处)       
+
+        End of deprecated system parameter listing
+
+    从动态文件创建静态文件（建议直接指定静态文件的路径）
+    编辑静态文件，删除remote_os_authent相关行的内容
+
+    使用静态文件启动数据库
+        startup pfile='静态文件路径';
+    从静态文件中创建新的动态文件
+        create spfile from pfile='静态文件路径';
+    关闭数据库shutdown immediate;
+    启动数据库即可
+
+
+
+Oracle 01090问题解决方法
+    方法一：
+
+    SQL>shutdown abort
+    ORA-01031: insufficient privileges
+
+    SQL> quit
+    已断开连接
+
+    C:/Users/snoopy.WIN-1NKFK454GDF>sqlplus/nolog
+
+    SQL> conn /as sysdba
+    已连接到空闲例程。
+    SQL> shutdown abort
+    ORACLE 例程已经关闭。
+    SQL> startup
+    ORACLE 例程已经启动。
+
+    Total System Global Area  591396864 bytes
+    Fixed Size                  1250308 bytes
+    Variable Size             226495484 bytes
+    Database Buffers          356515840 bytes
+    Redo Buffers                7135232 bytes
+    数据库装载完毕。
+    数据库已经打开。
+
+ 
+
+shutdown abort下一次启动需要实例恢复，这是自动的
