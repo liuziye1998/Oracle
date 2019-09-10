@@ -5,16 +5,17 @@ conn 用户名/密码 连接到数据库中
 conn 用户名/密码 as sysdba 以数据库管理员的身份连接数据库
 
 用户
-    给用户名解锁
+    创建用户
+        create user 用户名 identified by 密码 default tablespace 表空间名称 temporary tablespace 临时表空间名
+        quota 10m on 表空间名（设置用户可使用表空间的空间限额） password expire(用户登录后密码立即失效，需要用户立马更改密码)
+        account lock|unlock（是否锁定用户） profile profile|default 指定概要文件，若不指定则为默认概要文件
+    给用户名解锁（使用sysdba执行）
         alter user 用户名 account unlock
     锁定用户
         alter user 用户名 account lock;
     解锁用户
         alter user 用户名 account unlock;
     
-    创建用户
-        create user 用户名 identified by 密码 default tablespace 表空间名称 temporary tablespace 临时表空间名
-
     修改用户信息
         alter user 用户名 identified by 密码 default tablespace 表空间名称 temporary tablespace 临时表空间名
     修改用户所属的表空间
@@ -67,7 +68,8 @@ conn 用户名/密码 as sysdba 以数据库管理员的身份连接数据库
 对象：例如表
 查询所有Oracle对象权限
     select * from table__privilege_map;
-
+查看用户的系统权限
+    select * from dba_sys_privs
 将操作对象的某些权限/所有权限授权给用户或者角色
     grant 对象权限/所有对象权限 on 对象名 to 用户/全部用户/角色
         对象名要指定清楚，比如某某用户的某某表 system.temp system用户下的temp表     
@@ -79,8 +81,15 @@ conn 用户名/密码 as sysdba 以数据库管理员的身份连接数据库
 角色：可以理解为多个权限的集合
 
     创建角色
-        create role 角色
-
+        create role 角色（可选项）
+            not identified：激活时不需要密码验证
+            identified：激活是需要密码验证
+            by password：设置激活的验证密码
+            using package：创建角色时，该角色只能由应用通过授权的package激活
+            externally：激活角色前，必须通过外部服务授权
+            globally：用户必须通过企业路径服务授权来使用角色
+    修改角色
+        alter role 角色 （可选项，如上所示）
     删除角色
         drop rolo 角色名
 
@@ -88,7 +97,7 @@ conn 用户名/密码 as sysdba 以数据库管理员的身份连接数据库
         grant 权限 to 角色
 
     将角色赋予用户
-        grant 角色 to 用户
+        grant 角色 to 用户 with admin option(允许该用户给其他用户授予其拥有的权限);
 
     将用户的角色撤销
         revoke 角色名 from 用户
@@ -504,7 +513,100 @@ PL/SQL语言
         %rowcount：游标可以遍历的记录的数量
     执行包含游标的存储过程
         execute curcortest
-    
+
+
+触发器
+    查询用户是否具有创建触发器的权限
+        select * from dba_sys_privs where grantee='用户名' and privilege like 'create%'；
+    授权给用户创建触发器的权限
+        grant create any trigger to 用户名
+    创建触发器
+        create trigger 触发器名称 before/after(表示在事件之前或之后触发) delete (后面接SQL语句) on (后面接被操作对象名称)
+    触发器的分类
+        基于DML操作的触发器
+            触发器可以当用户对一个表的insert，updata和delete操作时触发行为，也可以实现对表的每一行进行DML操作时触发(要在触发器
+            定义中使用for each row 语句)
+            创建方法
+                create trigger 触发器名称 before/after(表示在事件之前或之后触发) delete (后面接SQL语句) on 表名 for each row(条件)
+        基于DDL操作的触发器
+            DDL操作 create alter drop等
+            创建方法
+                create trigger 触发器名称 before/after(表示在事件之前或之后触发) delete (后面接SQL语句) on 数据库名 (条件)
+        基于数据库级操做的触发器
+            数据库级操作startup shutdown logon logoff等
+            创建方法
+                create trigger 触发器名称 before/after(表示在事件之前或之后触发) delete (后面接SQL语句) on 数据库名 (条件)
+
+
+序列号
+    Oracle使用序列号生成器自动产生用户可以在事务中使用的唯一序列号，该序列号是一个整数类型数据主要用于在多任务环境下产生的唯一的数字序列
+    特点
+    1.独立于表的对象，由Oracle自动维护
+    2.可对多个用户共享使用，即同一个序列对象供多个表使用且相互独立
+    3.在SQL语句中使用序列号就可以使用他产生的序列号
+    创建序列号
+        create SEQUENCE 序列号名称 (后接可选项(start with n)(increment by n)(maxvalue n|nomaxvalue)(minvalue|nomimvalue)
+        (cache n|nocache)(cycle n|cycle));
+        start with n：序列号初始值，默认为1
+        increment by n：每次递增的值，默认为1
+        maxvalue n：设置序列号的最大值
+        nomaxvalue：不设置最大值，升序时最大为1027，降序时最大为-1
+        minvalue n：设置序列号最小值
+        nominvaluw：不设置最小值，升序是最小为1，降序是最小为-1026
+        cache n：Oracle服务器预分配n个序列号保存到内存中
+        nocache：Oracle服务器不会预分配序列号保留在内存中
+        cycle：序列号达到定义的最大值或最小值后将继续产生序列号
+        nocycle：序列号达到定义的最大值或最小值后，不继续产生序列号
+    验证序列号
+        select * from user_sequences where sequence_name like 'EMP%(序列号名)'
+    伪列
+        currval当前序列号的值，nextval下一序列号的值
+        查询伪列的值
+            select 序列名.currval,序列名.nextval from dual;
+    修改序列号
+        alert sequence 序列号名 （后接可选参数）
+    删除序列号
+        drop sequence 序列号名
+
+
+同义词即数据库对象的别名
+    私有同义词（只有私有同义词的用户才能使用）
+    创建
+        create synonym 同义词名称 for 数据库对象
+    使用私有同义词
+        select * from 同义词名称
+    删除(切换到私用同义词的所有用户)
+        drop synonym 同义词名称
+    公有同义词（所有用户都可以使用）
+    创建
+        create public synonym 公有同义词名称 for 数据库对象
+    使用公有同义词
+        select * from 同义词名称
+    删除
+        drop public synonym 同义词名称
+
+参数文件
+    创建参数文件
+    创建管理用户资源的文件
+        create profile 文件名 limit 
+            可选项
+            seesions_per_user n：每个用户最大的会话数
+            cpu_per_session n：每个会话占用的cpu时间单位为0.01秒
+            cpu_per_call n： 每个调用占用的cpu时间单位为0.01秒
+            connect_time n： 每个连接支持连接的时间
+            idle_time n： 每个会话的空闲时间
+            logical_reads_per_session n：每个会话的物理和逻辑读取数据块数
+            logical_reads_per_call n：限制每个sql语句能读取数据块数 
+    口令参数文件相关参数
+        failed_login_attempts:设置用户登录失败次数的限制，超过该数锁定用户
+        password_life_time:设置口令的有效期限，超时密码失效
+        password_reuse_time:设定了一个失效口令要经过多少天，用户才可以重新使用该口令
+        password_reuse_max:重新启用一个先前用过的口令前必须对该口令进行重新设置的次数（重复用的次数）
+        password_lock_time:设定帐户被锁定的天数
+        password_grace_time:口令过期后还能使用的天数。
+        password_verify_function:允许调用一个PL/SQL来验证口令
+
+
 
 
 学习进度 4.2完 https://www.51zxw.net/list.aspx?page=2&cid=616
