@@ -387,3 +387,109 @@ conn 用户名/密码 as sysdba 以数据库管理员的身份连接数据库
         
 
 
+数据泵
+    导入IMPDP(实用导入程序)，将备份的数据导入到整个数据库，特定的模式，特定的表或特定的表空间，也可在不同平台的数据
+库之间迁移表空间 SQLFILE是其专有参数
+    导入参数
+        1.目录和文件相关参数
+            directory：说明备份文件，日志文件和SQL文件的目录对象，若无定义目录则使用pump_dir的默认值
+            dumpfile：说明备份文件名，如要导入多个备份文件，则用逗号分隔这些文件名
+            parfile：说明参数文件的位置
+            logfile：使用日志文件保存导入过程的信息，该参数的值为日志文件的名称（即用该日志文件记录）
+            nologfile：不使用日志文件保存导入过程
+            SQLfile：从备份文件中提取SQL的DDL语句，并写入到该参数设置的文件中
+        2.过滤参数
+            include：说明要导入的特定对象，如有多个使用逗号隔开，如只导入表，此时会导入和表有依赖关系的对象，如索引，触发器等
+                include=table:"in ('emp',dept)"只导入这两个表
+
+            table_exits_action：若导入的表已存在时，设置IMPDP的行为，其有四个值，skip表示若存在该表就跳过(默认值) 
+            append将导入的数据附加到当前存在的表中，truncate,截断表并从导入数据中重新装载数据
+            replace删除存在的表后重建并导入数据
+
+            exclude：排除特定的对象
+        
+        3.导入作业参数
+            job_name：说明导入作业名
+            prallel：说明当前导入作业的线程数，默认为1
+            status：监视导入作业的频率，默认值为0
+
+        4.导入方式参数
+            tables：允许导入指定的表，如有多个使用逗号隔开，会导入和表有依赖关系的对象，如索引，触发器等
+            schemas：说明要导入的模式，要使用该参数登录数据库的用户必须拥有imp_full_database的权限
+            tablespaces：说明要导入的表空间的列表，同时也导入与表空间有依赖关系的所有数据库对象
+            full：导入整个数据库，该参数默认值为n
+
+        5.重新映射参数
+            在数据导入过程中，将一个数据库对象移动到另一个数据库对象，可以映射模式，映射数据文件和表空间
+        映射可以理解为数据对象移动
+            remap_schema：重新映射模式，将对象从一个用户/模式移动到另一个用户/模式
+                D:\>impdp system/oracle@orcl dumpfile=pump_dir:shcema_scott.dmp remap_schema=scott:linzi
+                将Scott用户下的所有数据库对象移动到linzi用户下
+
+            remap_datafile：导入数据是，重新定义数据文件的名称和目录
+                D:\>impdp system/oracle@orcl directory=pump_dir 
+                dumpfile=backup_full.dmp 
+                remap_datafile='c:\mydbf'(旧名旧目录):'d:\mydbf\newdb.dbf(新名新目录)'
+            remap_tablespace：重映射表空间使得将数据对象从一个表空间移动到另一个表空间
+                D:\>impdp system/oracle@orcl remap_tablespace='users(旧表空间名)':'mynewusers(新表空间名，须为已有的)' 
+                directory=pump dir dumpfile=backup_full.dmp
+
+        6.转换参数
+            Transfrom：导入数据泵作业时可以选择导入某个对象的存储参数或其他属性值
+            transfrom=transfrom_name:value[:object_type]
+                transfrom_name：有4个选项 segment_attributes段属性包括物理属性，存储参数，表空间等参数值为Y(为包含)或N
+                    storage：是否导入对象的存储属性参数值为Y或N
+                    OID：是否重新分配新的OID给对象表
+                    pctspace：提供一个整数值，可以增加对象的分配尺寸
+                value：transfrom的前三个参数值为y
+                object_type：说明对象的类型
+        
+        7.闪回参数
+            flashback_scn：使用Oracle的闪回特性，允许导入和闪回scn接近的数据
+            flashback_time:使用Oracle的闪回特性，允许导入和指定闪回时间接近的数据
+
+        8.与可移植表空间有关的参数：Oracle的可移植表空间是数据从一个数据库移动到另一个数据库中非常容易
+            transfrom_tablespace：说明要迁移的表空间列表
+            transfrom_full_check：迁移表空间时，检查迁移表空间内的对象和迁移表空间外的对象是否有依赖性，该参数只有使
+            用network_link参数时才有效
+            transfrom_datafiles：执行表空间导入时，目标数据库使用源数据库中拷贝过来的数据文件作为可移植表空间的数据文件
+
+        9.交互式参数
+            parallel：说明当前作业的活跃worker数量
+            continue_client：切换交互模式后，返回记录模式
+            kill_job：分离或删除当前导入作业
+            start_job：导入作业意外终止后，重启或恢复当前作业
+            status：监视当前导入作业的状态，该参数为整数值，默认值为0，若设置为n则表示为n秒刷新一次导入作业状态信息
+            stop_job：关闭当前执行的作业并退出客户端，若有多个则顺序退出，若stop_job=immediate则立即关闭数据泵作业
+
+    导入数据库
+        D:\>impdp(操作系统下输入) system/oracle(用户名密码)@orcl
+        dumpfile=pump_dir:full_db_%u.database(备份文件)
+        logfile=myfulldb.log(日志文件) parallel=3(并行度)
+        job_name=my_fulldb_impdp(工作名) full=y(全部导入)
+    
+    导入表空间
+        D:\>impdp(操作系统下输入) system/oracle(用户名密码)@orcl
+        dumpfile=pump_dir:MYDB_TBS_USERSANDSYSTEM_01.DAT logfile=log
+        tablespace=users(表空间名) table_exits_action=replace(如果表空间存在，则删除后重建)
+
+    导入特定的表
+        D:\>impdp(操作系统下输入) system/oracle(用户名密码)@orcl
+        dumpfile=pump_dir:MYDB_TBS_USERSANDSYSTEM_01.DAT nologfile=y tables=emp(表名))
+        table_exits_action=replace
+
+    导入指定的数据库对象
+        D:\>impdp(操作系统下输入) scott/trgger(用户名密码)@orcl
+        dumpfile=pump_dir:MYDB_TBS_USERSANDSYSTEM_01.DAT nologfile=y
+        include=table,trugger
+        table_exits_action=replace
+
+    导出EXPDP(导出程序)，ADD_FILE是其专有参数
+
+
+
+备份数据库
+    exp使用程序可以导出整个数据库，一个用户的所有对象，一个表空间或特定的表，使用exp导出的数据
+    必须使用IMP恢复/导入
+
+
