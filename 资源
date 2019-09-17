@@ -7,6 +7,7 @@ administrator guide https://docs.oracle.com/cd/B28359_01/server.111/b28310/dba00
 若系统环境为简体中文，安装执行可能会出现乱码现象
     解决办法：
         设置临时语言环境后再进行安装，
+            LANG="en_us.utf-8"
             LANG=en_US ./runInstall
         或
             unset LANG 
@@ -16,6 +17,17 @@ oracle 体系进程
 https://blog.csdn.net/oChangWen/article/details/51171992
 
 https://blog.csdn.net/oChangWen/article/details/51171992
+
+rpm源包下载网站
+    http://www.rpm-find.net/linux/rpm2html/search.php?query=pdksh&submit=%E6%90%9C%E7%B4%A2...+&arch=i386
+
+Linux下安装Oracle11g产生的问题参考教程
+    https://www.linuxidc.com/Linux/2015-01/112247.html
+    https://blog.csdn.net/chennnm/article/details/80380288
+    https://www.2cto.com/database/201806/756731.html
+    https://www.pydyun.com/oracle11g-tutorial.html
+    https://blog.csdn.net/lia17/article/details/82256565
+    
 
 教学视频
 https://edu.51cto.com/course/200.html
