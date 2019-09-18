@@ -1,6 +1,12 @@
-启动数据库
+windows下启动数据库
     sqlplus /nolog 没有任何连接状态
     conn 用户名/密码 连接到数据库中
+
+Linux下启动数据库
+    sqlplus /nolog 无连接状态打开SQLplus
+    conn /as dba 用dba身份连接
+    startup启动数据库
+    conn 用户名/密码  连接到数据库
 
 conn 用户名/密码 as sysdba 以数据库管理员的身份连接数据库
 
@@ -488,8 +494,77 @@ conn 用户名/密码 as sysdba 以数据库管理员的身份连接数据库
 
 
 
-备份数据库
+exp备份数据库(导出)
     exp使用程序可以导出整个数据库，一个用户的所有对象，一个表空间或特定的表，使用exp导出的数据
     必须使用IMP恢复/导入
+
+    常用参数
+        1.userid：无默认值，说明登陆数据库的用户名和密码
+        2.buffer：指定数据缓冲区的大小
+        3.file：将备份的数据文件重命名，若不命名则默认为expdat.dmp或EXPDAT.DMP 
+        4.compress：该参数默认值为Y或N，使Oracle对导出的数据进行配置
+        5.grants：默认值为Y或N。控制授权的导出
+        6.indexes：默认值为Y或N，控制索引的导出
+        7.log：该参数说明在导出备份时，是否需要创建一个备份日志，来记录整个备份过程
+        8.full：说明是否导出整个数据库的所有对象，默认值为Y或N，如果全部导出，则连接的用户必须具有dba权限才行
+        9.tables：若该表是当前连接的用户所有，则直接输入表名，否则输入模式名和表名。若有多个则用逗号隔开，
+        10.owner：说明要导出特定用户的数据库对象
+        11.trigger：默认值为Y或N，说明是否导出用户下的触发器
+        12.statistics：该参数值为estimate,computer,none指出产生的对象的统计方式，若选择estimate，computer
+        则以该方式计算统计量，none表示不使用统计量
+        13.constraint：默认值为Y或N 说明是否导出约束
+        14.feedback：每隔一定行数显示备份进展情况，该参数值为0到n的任何有效数字
+        15.filesize：设置每个转储文件的最大值
+        16.tablespace：说明要导出的表空间名称
+        17.resumable：该参数的值为Y或N指出exp是否使用Oracle的可恢复空间管理工具，使用该工具导出数据时，如发生与空间
+        相关的错误应终止导出
+    导出整个数据库
+        D:\>exp liu/oracle@oracle full=y(全部导出) file=backup_testdata.dmp(导出到本地的文件名))
+    导出整个数据库结构，不导出数据
+        D:\>exp liu/oracle@oracle full=y row=n（使用此参数） file=backup_testdata.dmp
+    导出特定用户的表(若需要导出的不是当前用户的表则需要使用username.tablename的形式说明该表属于哪个用户)
+        D:\>exp liu/oracle@oracle tables=socct.dept file=backup_testdata.dmp
+    导出当前用户的表
+        D:\>exp liu/oracle@oracle table=dept(只导出dept表) file=table.dmp
+    导出指定用户的所有数据（导出指定的用户）
+        D:\>exp liu/oracle@oracle owner=scott(用户名) file=backup_testdata.dmp
+    导出特定的表空间
+        D:\>exp liu/oracle@oracle tablespaces=表空间名 file=backup_testdata.dmp
+    
+
+
+
+imp恢复数据库(导入)
+    导入通过exp指令导出的备份数据，imp可以导入一个完整的数据库，一个指定的用户的所有数据库对象，一个特定的表空间和一个特定的表
+    常用参数
+        1.userid：说明登录数据库的用户名和密码
+        2.buffer：说明输入数据缓冲区的大小
+        3.file：说明exp程序创建的备份名，有时需要绝对路径
+        4.show：导入过程中是否显示备份文件的内容
+        5.ignore：是否忽略在导入备份过程中的错误
+        6.grants：是否导入备份文件中的授权
+        7.indexes：是否导入索引
+        8.rows：是否导入数据，默认参数为Y或N，若为N则不输入数据
+        9.log：是否将导入过程记录到日志文件中
+        10.full：将整个备份文件导入
+        11.formuser：允许将一个备份文件中的对象从一个用户复制到另一个用户，该参数说明数据的源用户
+        12.touser：允许将一个备份文件中的对象从一个用户复制到另一个用户，该参数说明数据的目标用户
+        13.tables：说明要导入的表名
+        14.skip_unusable_indexes：该参数默认值为Y或N，说明是否需要重建已经设置为unuable状态的索引
+        15.statistics：说明在导入对象后对统计量的处理，参数为always(从备份文件中导入统计量)，none(不做任何动作),
+        safe(如果使用可靠的优化器，则允许导入优化器统计量)),recalsulate(重新计统计量，而不是从备份文件中导入统计量)
+        16.constraints：说明是否导入备份数据中的约束
+        17.compile：说明是否引入进程来编译过程，包和函数
+
+    恢复整个数据库（导入整个数据库）
+        D:\>imp liu/oracle@oracle full=y file=backup_testdata.dmp ignore=y(忽略导入过程中的错误)
+    恢复特定的表
+         D:\>imp liu/oracle@oracle ftables=表名  file=backup_testdata.dmp 
+    恢复指定的用户
+         D:\>imp liu/oracle@oracle full=y file=backup_testdata.dmp（该用户的备份文件）
+    导入指定的表到指定的用户(将Scott用户的emp表导入到system用户中，即在system用户中创建一个表，然后将数据插入)
+         D:\>imp liu/oracle@oracle tables=emp fromuser=scott touser=system file=backup_testdata.dmp 
+
+
 
 
