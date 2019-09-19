@@ -393,8 +393,105 @@ conn 用户名/密码 as sysdba 以数据库管理员的身份连接数据库
         
 
 
-数据泵
-    导入IMPDP(实用导入程序)，将备份的数据导入到整个数据库，特定的模式，特定的表或特定的表空间，也可在不同平台的数据
+exp备份数据库(导出)
+    exp使用程序可以导出整个数据库，一个用户的所有对象，一个表空间或特定的表，使用exp导出的数据
+    必须使用IMP恢复/导入
+
+    常用参数
+        1.userid：无默认值，说明登陆数据库的用户名和密码
+        2.buffer：指定数据缓冲区的大小
+        3.file：将备份的数据文件重命名，若不命名则默认为expdat.dmp或EXPDAT.DMP 
+        4.compress：该参数默认值为Y或N，使Oracle对导出的数据进行配置
+        5.grants：默认值为Y或N。控制授权的导出
+        6.indexes：默认值为Y或N，控制索引的导出
+        7.log：该参数说明在导出备份时，是否需要创建一个备份日志，来记录整个备份过程
+        8.full：说明是否导出整个数据库的所有对象，默认值为Y或N，如果全部导出，则连接的用户必须具有dba权限才行
+        9.tables：若该表是当前连接的用户所有，则直接输入表名，否则输入模式名和表名。若有多个则用逗号隔开，
+        10.owner：说明要导出特定用户的数据库对象
+        11.trigger：默认值为Y或N，说明是否导出用户下的触发器
+        12.statistics：该参数值为estimate,computer,none指出产生的对象的统计方式，若选择estimate，computer
+        则以该方式计算统计量，none表示不使用统计量
+        13.constraint：默认值为Y或N 说明是否导出约束
+        14.feedback：每隔一定行数显示备份进展情况，该参数值为0到n的任何有效数字
+        15.filesize：设置每个转储文件的最大值
+        16.tablespace：说明要导出的表空间名称
+        17.resumable：该参数的值为Y或N指出exp是否使用Oracle的可恢复空间管理工具，使用该工具导出数据时，如发生与空间
+        相关的错误应终止导出
+    导出整个数据库
+        D:\>exp liu/oracle@oracle full=y(全部导出) file=backup_testdata.dmp(导出到本地的文件名))
+    导出整个数据库结构，不导出数据
+        D:\>exp liu/oracle@oracle full=y row=n（使用此参数） file=backup_testdata.dmp
+    导出特定用户的表(若需要导出的不是当前用户的表则需要使用username.tablename的形式说明该表属于哪个用户)
+        D:\>exp liu/oracle@oracle tables=socct.dept file=backup_testdata.dmp
+    导出当前用户的表
+        D:\>exp liu/oracle@oracle table=dept(只导出dept表) file=table.dmp
+    导出指定用户的所有数据（导出指定的用户）
+        D:\>exp liu/oracle@oracle owner=scott(用户名) file=backup_testdata.dmp
+    导出特定的表空间
+        D:\>exp liu/oracle@oracle tablespaces=表空间名 file=backup_testdata.dmp
+    
+
+imp恢复数据库(导入)
+    导入通过exp指令导出的备份数据，imp可以导入一个完整的数据库，一个指定的用户的所有数据库对象，一个特定的表空间和一个特定的表
+    常用参数
+        1.userid：说明登录数据库的用户名和密码
+        2.buffer：说明输入数据缓冲区的大小
+        3.file：说明exp程序创建的备份名，有时需要绝对路径
+        4.show：导入过程中是否显示备份文件的内容
+        5.ignore：是否忽略在导入备份过程中的错误
+        6.grants：是否导入备份文件中的授权
+        7.indexes：是否导入索引
+        8.rows：是否导入数据，默认参数为Y或N，若为N则不输入数据
+        9.log：是否将导入过程记录到日志文件中
+        10.full：将整个备份文件导入
+        11.formuser：允许将一个备份文件中的对象从一个用户复制到另一个用户，该参数说明数据的源用户
+        12.touser：允许将一个备份文件中的对象从一个用户复制到另一个用户，该参数说明数据的目标用户
+        13.tables：说明要导入的表名
+        14.skip_unusable_indexes：该参数默认值为Y或N，说明是否需要重建已经设置为unuable状态的索引
+        15.statistics：说明在导入对象后对统计量的处理，参数为always(从备份文件中导入统计量)，none(不做任何动作),
+        safe(如果使用可靠的优化器，则允许导入优化器统计量)),recalsulate(重新计统计量，而不是从备份文件中导入统计量)
+        16.constraints：说明是否导入备份数据中的约束
+        17.compile：说明是否引入进程来编译过程，包和函数
+
+    恢复整个数据库（导入整个数据库）
+        D:\>imp liu/oracle@oracle full=y file=backup_testdata.dmp ignore=y(忽略导入过程中的错误)
+    恢复特定的表
+         D:\>imp liu/oracle@oracle ftables=表名  file=backup_testdata.dmp 
+    恢复指定的用户
+         D:\>imp liu/oracle@oracle full=y file=backup_testdata.dmp（该用户的备份文件）
+    导入指定的表到指定的用户(将Scott用户的emp表导入到system用户中，即在system用户中创建一个表，然后将数据插入)
+         D:\>imp liu/oracle@oracle tables=emp fromuser=scott touser=system file=backup_testdata.dmp 
+
+
+
+数据泵(是imp和exp程序的扩展)
+
+    与imp和exp程序的区别
+        1.更快的速度，更大的数据量
+        2.数据泵技术基于数据库服务器，在服务器段产生进程，并且将备份的数据备份在数据库服务器中
+        3.不同于用户进程，更像一个控制进程，在客户端和服务器端建立会话，并控制整个备份过程
+        4.传统imp和exp备份的数据格式与数据泵备份的数据格式不兼容
+        5.使用数据泵导出数据前必须要先创建目录对象
+        
+    数据泵的优点
+        1.更快的的速度，可并行作业
+        2.重启失败的作业，手动停止作业或重启作业
+        3.独立于客户机，数据泵技术是基于数据库服务器，是数据库服务器的一部分
+        4.支持网络操作，在两个联网的数据库服务器直接导入导出数据文件，无需备份
+        5.更加细化的导入导出
+
+    查看dba用户默认的数据泵工作的目录
+        select * from dba_directories where directory_name='DATA_PUMP_DIR';
+
+    非dba用户需要创建数据泵的工作目录，创建方法如下
+        1.登录dba用户，给用户授予创建目录的权限
+            conn system/oracle 
+            grant create any directory to 用户名;
+        2.登录授权之后的用户，创建数据泵的工作目录
+            conn 用户名/密码
+            create directory 目录对象名 as '目录的路径';(操作系统不会自动创建此目录，须手动进行创建)
+
+    导入IMPDP(服务器端实用导入程序)，将备份的数据导入到整个数据库，特定的模式，特定的表或特定的表空间，也可在不同平台的数据
 库之间迁移表空间 SQLFILE是其专有参数
     导入参数
         1.目录和文件相关参数
@@ -421,7 +518,9 @@ conn 用户名/密码 as sysdba 以数据库管理员的身份连接数据库
 
         4.导入方式参数
             tables：允许导入指定的表，如有多个使用逗号隔开，会导入和表有依赖关系的对象，如索引，触发器等
-            schemas：说明要导入的模式，要使用该参数登录数据库的用户必须拥有imp_full_database的权限
+            schemas：说明要导入的模式(用户所拥有的数据库对象的集合)，要使用该参数，登录数据库的用户必须拥有imp_full_database的权限
+                对象：包括索引，表，视图，函数，包，过程，同义词，序列，触发器
+            query：过滤要导入的表数据，此时数据泵导入作业使用外部表数据的方法访问数据
             tablespaces：说明要导入的表空间的列表，同时也导入与表空间有依赖关系的所有数据库对象
             full：导入整个数据库，该参数默认值为n
 
@@ -468,103 +567,81 @@ conn 用户名/密码 as sysdba 以数据库管理员的身份连接数据库
             status：监视当前导入作业的状态，该参数为整数值，默认值为0，若设置为n则表示为n秒刷新一次导入作业状态信息
             stop_job：关闭当前执行的作业并退出客户端，若有多个则顺序退出，若stop_job=immediate则立即关闭数据泵作业
 
-    导入数据库
-        D:\>impdp(操作系统下输入) system/oracle(用户名密码)@orcl
-        dumpfile=pump_dir:full_db_%u.database(备份文件)
-        logfile=myfulldb.log(日志文件) parallel=3(并行度)
-        job_name=my_fulldb_impdp(工作名) full=y(全部导入)
-    
-    导入表空间
-        D:\>impdp(操作系统下输入) system/oracle(用户名密码)@orcl
-        dumpfile=pump_dir:MYDB_TBS_USERSANDSYSTEM_01.DAT logfile=log
-        tablespace=users(表空间名) table_exits_action=replace(如果表空间存在，则删除后重建)
+        导入数据库
+            D:\>impdp(操作系统下输入) system/oracle(用户名密码)@orcl
+            dumpfile=pump_dir:full_db_%u.database(备份文件)
+            logfile=myfulldb.log(日志文件) parallel=3(并行度)
+            job_name=my_fulldb_impdp(工作名) full=y(全部导入)
+        
+        导入表空间
+            D:\>impdp(操作系统下输入) system/oracle(用户名密码)@orcl
+            dumpfile=pump_dir:MYDB_TBS_USERSANDSYSTEM_01.DAT logfile=log
+            tablespace=users(表空间名) table_exits_action=replace(如果表空间存在，则删除后重建)
 
-    导入特定的表
-        D:\>impdp(操作系统下输入) system/oracle(用户名密码)@orcl
-        dumpfile=pump_dir:MYDB_TBS_USERSANDSYSTEM_01.DAT nologfile=y tables=emp(表名))
-        table_exits_action=replace
+        导入特定的表
+            D:\>impdp(操作系统下输入) system/oracle(用户名密码)@orcl
+            dumpfile=pump_dir:MYDB_TBS_USERSANDSYSTEM_01.DAT nologfile=y tables=emp(表名))
+            table_exits_action=replace
 
-    导入指定的数据库对象
-        D:\>impdp(操作系统下输入) scott/trgger(用户名密码)@orcl
-        dumpfile=pump_dir:MYDB_TBS_USERSANDSYSTEM_01.DAT nologfile=y
-        include=table,trugger
-        table_exits_action=replace
+        导入指定的数据库对象
+            D:\>impdp(操作系统下输入) scott/trgger(用户名密码)@orcl
+            dumpfile=pump_dir:MYDB_TBS_USERSANDSYSTEM_01.DAT nologfile=y
+            include=table,trugger
+            table_exits_action=replace
 
-    导出EXPDP(导出程序)，ADD_FILE是其专有参数
+    导出EXPDP(服务器端导出程序)，ADD_FILE是其专有参数，允许挂起和恢复作业，也支持从失败或终止的作业中重启，导出数据库对象的选择更加的细化，
+并且提供并行处理，expdp支持两种数据访问的方法外部表和直接路径访问方法，expdp提供了三种提取数据的方法，一是只提取数据库中的 元数据，
+二是只提取数据库中的数据，三是同时提取元数据和数据
 
-
-
-exp备份数据库(导出)
-    exp使用程序可以导出整个数据库，一个用户的所有对象，一个表空间或特定的表，使用exp导出的数据
-    必须使用IMP恢复/导入
-
-    常用参数
-        1.userid：无默认值，说明登陆数据库的用户名和密码
-        2.buffer：指定数据缓冲区的大小
-        3.file：将备份的数据文件重命名，若不命名则默认为expdat.dmp或EXPDAT.DMP 
-        4.compress：该参数默认值为Y或N，使Oracle对导出的数据进行配置
-        5.grants：默认值为Y或N。控制授权的导出
-        6.indexes：默认值为Y或N，控制索引的导出
-        7.log：该参数说明在导出备份时，是否需要创建一个备份日志，来记录整个备份过程
-        8.full：说明是否导出整个数据库的所有对象，默认值为Y或N，如果全部导出，则连接的用户必须具有dba权限才行
-        9.tables：若该表是当前连接的用户所有，则直接输入表名，否则输入模式名和表名。若有多个则用逗号隔开，
-        10.owner：说明要导出特定用户的数据库对象
-        11.trigger：默认值为Y或N，说明是否导出用户下的触发器
-        12.statistics：该参数值为estimate,computer,none指出产生的对象的统计方式，若选择estimate，computer
-        则以该方式计算统计量，none表示不使用统计量
-        13.constraint：默认值为Y或N 说明是否导出约束
-        14.feedback：每隔一定行数显示备份进展情况，该参数值为0到n的任何有效数字
-        15.filesize：设置每个转储文件的最大值
-        16.tablespace：说明要导出的表空间名称
-        17.resumable：该参数的值为Y或N指出exp是否使用Oracle的可恢复空间管理工具，使用该工具导出数据时，如发生与空间
-        相关的错误应终止导出
-    导出整个数据库
-        D:\>exp liu/oracle@oracle full=y(全部导出) file=backup_testdata.dmp(导出到本地的文件名))
-    导出整个数据库结构，不导出数据
-        D:\>exp liu/oracle@oracle full=y row=n（使用此参数） file=backup_testdata.dmp
-    导出特定用户的表(若需要导出的不是当前用户的表则需要使用username.tablename的形式说明该表属于哪个用户)
-        D:\>exp liu/oracle@oracle tables=socct.dept file=backup_testdata.dmp
-    导出当前用户的表
-        D:\>exp liu/oracle@oracle table=dept(只导出dept表) file=table.dmp
-    导出指定用户的所有数据（导出指定的用户）
-        D:\>exp liu/oracle@oracle owner=scott(用户名) file=backup_testdata.dmp
+    导出参数
+        1.attach：连接到现有作业，格式为attach=作业名
+        2.content：说明要导出的是元数据还是数据，参数为all,data_only,metadata_only
+        3.directory：说明要导出的备份文件，日志文件和sql文件的存储目录，非dba用户需要提前设置该目录
+        4.dumpfile：说明导出备份的文件名
+        5.estimate：计算导出作业导出文件的大小，选项为blocks(基于数据库块大小的倍数计算备份文件大小)，
+            statistics(使用当前对象的统计量来计算导出的备份文件的大小)
+        6.estimate_only：只估计导出文件的大小，不进行实际的导出作业，参数为Y或N
+        7.exclude：排除不需要导出的特定的对象
+        8.flashback_scn：使用Oracle的闪回特性，使用规定的scn进行闪回
+        9.full：说明是否导出整个数据库对象
+        10.include：说明要导出的特定对象，如有多个使用逗号隔开，如只导出表，此时会导出和表有依赖关系的对象，如索引，触发器等
+        11.job_name：说明导出作业名，命名格式为sys_operation(导入/导出)_mode(数据类型)_nm(编号)
+            如导出scott用户的元数据"scott"."sys_export_schema_01"
+        12.logfile：说明在导出时记录导出过程的日志文件名，默认名为export.log必须和导出文件保存在相同的目录下，即directory参数指定的目录
+        13.parallel：设置可同时导出作业时最大的进程数，默认为1
+        14.query：允许使用sql语句程序过滤导出的数据
+        15.schemas：说明要导出的模式(用户所拥有的数据库对象的集合)，要使用该参数登录数据库的用户必须拥有exp_full_database的权限
+             对象：包括索引，表，视图，函数，包，过程，同义词，序列，触发器
+        16.status：监视导入作业的频率，默认值为0
+        17.tables：说明要导出的表名,会导出与表有关系的对象
+        18.tablespaces：说明要导出的表空间的列表，同时也导出与表空间有依赖关系的所有数据库对象
+        19.version：将数据库对象导出到指定的数据库版本，解决数据库对象从高版本到低版本迁移时版本兼容的问题
+    交互式参数
+        1.add_file：向备份文件中添加文件以增加目录空间，解决因备份文件空间不足导致停止的问题
+        2.stop_job：停止运行的数据泵作业，数据库服务器端的导出数据服务器进程终止
+        3.start_job ：重新恢复意外停止的数据泵作业
+        4.kill_job ：杀死客户机进程和数据泵作业
+        5.continue_client：退出交互模式恢复正在运行的导出数据泵作业，实际的数据泵作业不受影响
+        6.exit_client：停止交互式会话，实际的数据泵作业不受影响
+    导入出整个数据库
+        D:\>expdp system/oracle@oracle dumpfile=pump_dir(目录):mydb_%u.dat(文件名,若文件存储空间不足%u实现备份文件自动创建)
+         filesize=100m nologfile=y job_name=tom full=y
+    导入一个模式（没有schema参数，默认导出登录数据库时的模式对象）
+        D:\>expdp scott/tiger@oracle directory=pump_dir（目录） dumpfile=scottschema.dmp 
+        logfile=scottschema.log
+    导出一个特定的表
+        D:\>expdp system/oracle@oracle dumpfile=pump_dir:scott_tables_%u.dat tables=scott.emp,scott.dept
+        nologfile=y job_name=only_scott
     导出特定的表空间
-        D:\>exp liu/oracle@oracle tablespaces=表空间名 file=backup_testdata.dmp
-    
-
-
-
-imp恢复数据库(导入)
-    导入通过exp指令导出的备份数据，imp可以导入一个完整的数据库，一个指定的用户的所有数据库对象，一个特定的表空间和一个特定的表
-    常用参数
-        1.userid：说明登录数据库的用户名和密码
-        2.buffer：说明输入数据缓冲区的大小
-        3.file：说明exp程序创建的备份名，有时需要绝对路径
-        4.show：导入过程中是否显示备份文件的内容
-        5.ignore：是否忽略在导入备份过程中的错误
-        6.grants：是否导入备份文件中的授权
-        7.indexes：是否导入索引
-        8.rows：是否导入数据，默认参数为Y或N，若为N则不输入数据
-        9.log：是否将导入过程记录到日志文件中
-        10.full：将整个备份文件导入
-        11.formuser：允许将一个备份文件中的对象从一个用户复制到另一个用户，该参数说明数据的源用户
-        12.touser：允许将一个备份文件中的对象从一个用户复制到另一个用户，该参数说明数据的目标用户
-        13.tables：说明要导入的表名
-        14.skip_unusable_indexes：该参数默认值为Y或N，说明是否需要重建已经设置为unuable状态的索引
-        15.statistics：说明在导入对象后对统计量的处理，参数为always(从备份文件中导入统计量)，none(不做任何动作),
-        safe(如果使用可靠的优化器，则允许导入优化器统计量)),recalsulate(重新计统计量，而不是从备份文件中导入统计量)
-        16.constraints：说明是否导入备份数据中的约束
-        17.compile：说明是否引入进程来编译过程，包和函数
-
-    恢复整个数据库（导入整个数据库）
-        D:\>imp liu/oracle@oracle full=y file=backup_testdata.dmp ignore=y(忽略导入过程中的错误)
-    恢复特定的表
-         D:\>imp liu/oracle@oracle ftables=表名  file=backup_testdata.dmp 
-    恢复指定的用户
-         D:\>imp liu/oracle@oracle full=y file=backup_testdata.dmp（该用户的备份文件）
-    导入指定的表到指定的用户(将Scott用户的emp表导入到system用户中，即在system用户中创建一个表，然后将数据插入)
-         D:\>imp liu/oracle@oracle tables=emp fromuser=scott touser=system file=backup_testdata.dmp 
-
-
+        D:\>expdp system/oracle@oracle dumpfile=pump_dir:user_tbs_%u.dmp tablespace=users(表空间名) filesize=100m
+        paraller=2 logfile=users_tbs.log job_name=exp_users_tbs
+    只导出数据行
+        D:\>expdp system/oracle@oracle dumpfile=pump_dir:mydb_dataonly_%u.dat filesize=100m job_name=larry
+        full=y content=data_only logfile=pump_dir:mydb_exp_dataonly_log
+    使用参数文件导出或导入
+        编辑参数文件并保存以.par结束
+        使用参数文件 D:\>expdp scott/tiger@oracle parfile=参数文件的绝对路径
+    计算导出数据库所需要的空间
+        D:\>expdp system/oracle@oracle full=y estimate_only=y estimate=statistics nologfile=y
 
 
