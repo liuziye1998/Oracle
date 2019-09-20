@@ -49,8 +49,14 @@ Oracle 01090问题解决方法
 
 shutdown abort下一次启动需要实例恢复，这是自动的
 
-安装过程中出现ins 32012警告时
+安装数据库：过程中出现ins 32012警告时
 	检查连接或登录的初始用户是否为Oracle
 
-nat网络模式下虚拟机的IP地址不是一成不变的会导致监听无法正常启动
+安装监听时：nat网络模式下虚拟机的IP地址不是一成不变的会导致监听无法正常启动
 	修改hostname的名称 重新编辑/etc/hosts，将ip和主机名重新写入
+
+onekeeper运维工具箱网络问题
+    onekeeper环境安装后ping不通主机 
+    方法1.使用命令sudo setip-eth0将IP设为本机IP相同的网络位
+    方法2.编辑 /etc/sysconfig/network-scripts/ifcfg-eth0 添加IP信息 或设置BOOTPROTO=DHCP
+	执行sudo systemctl restart network重启网络服务
