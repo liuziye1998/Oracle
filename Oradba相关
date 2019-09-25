@@ -721,14 +721,14 @@ rman
         1. show：通过show命令显示当前的配置参数 showshow all; 
         2. list：列出数据库中所有的备份信息 list backup；列出相对应的备份信息 list backup of ;列出所有无效备份list expired backup
         3. delete：删除备份记录及相应的物理文件
-            删除过期备份：delete obslete
+            删除过期备份：delete obsolete
             删除无效备份：delete expired backup 删除expired副本：delete expired copy
             删除特定备份集：delete backupset 备份集id  删除特定的备份片 delete backuppiece
 
     report：对当前备份信息的分析
         report need backup ：查看所有需要备份的文件
         report need backup tablespace 表名称：查看指定的表空间是否需要备份
-        report obslete ：查看过期备份
+        report obsolete ：查看过期备份
 
     crosscheck：用来检查备份或归档物理文件的状态，如果物理文件存在，并且控制文件或恢复目录中有匹配记录，则标记该对象状态为available(有效)
         若文件不存在，则标记该对象状态为expired（无效）
@@ -742,8 +742,54 @@ rman
         change archivelog logseq=n delete 删除指定的归档文件
 
 
+    增量备份：所有增量备份都必须创建0级备份，0级备份相当于数据库的完整备份
+        创建0级的全库备份
+            backup incremental level=0 database;
+        为数据文件建立增量级别为1的备份
+            backup incremental level=1 datafile '文件路径'
+        为表空间建立增量级别为1的备份
+            backup incremental level=1 tablespace 表空间名
+    增量备份类型：
+        differential(差异)，cumulative(累积)，这两种增量类型在创建备份集时算法是不一样的，differential为默认方式，
+        backup incremental level=0 cumulative database; 用来创建cumulative类型的增量备份
+            启动块修改跟踪
+                alter database enable block change tracking using file'/loaction/trk_filename';
+            禁用块修改跟踪
+                alter database disable block chang tracking ;
+            查询是否启用块修改跟踪
+                select status from V$block_change_tracking;
+
+    基于时间保存备份的策略
+        configure retention policy to recovery window of n days; n为正整数；
+        最早可以将数据库恢复到几天前的状态（各个数据文件必须满足 sysdate - backup checkpoint time >=n才行）
+        （此方式受控制文件中control_file_record_keep_time参数的影响）
     
+    基于冗余数量的备份保存策略
+        如果某个数据文件的冗余备份数量超过指定的数量，rman将废除最旧的备份
+        configure retention policy to redundancy n;
+
+    不采用任何备份保留状态，需dba用户
+        configure retention policy to none;
+
+    根据备份策略维护备份集
+        设置备份策略之后rman会自动判断哪些备份集或镜像复制文件不需要再保留
+            report obsolete查看当前处于废弃状态的备份文件
+            delete obsolete删除废弃状态的备份文件
+
+
+
+    备份设备：rman支持两种备份设备，磁带（SBT）和磁盘（DISK）
+    通道和设备之间关系密切，分配通道基于设备做分配
     
+    手工分配通道：
+        专有命令：allocate channel该命令只能在run块中出现，每条allocate chanel对应一条通道，通道数决定操作的并行度
+        release channel 命令用来释放通道，rman会在run中任务完成之后自动释放通道
+    自动分配通道
+        1. configure device type sbt/disk parallelism n;
+        2. configure default device type to sbt/disk;
+        3. configure channel device type sbt/disk format...;
+        4. configure channel n device type sbt/disk format...;
+
 
 
 
