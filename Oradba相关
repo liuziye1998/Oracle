@@ -265,6 +265,10 @@ conn 用户名/密码 as sysdba 以数据库管理员的身份连接数据库
         跟踪文件中记录了用于建立控制文件的sql语句适当的编辑跟踪文件，然后用sql指令重建控制文件，创建控制文件成功后要进行数据库恢复
     即recover database 并在打开数据库后创建一个临时表空间用于数据排列
 
+数据文件：
+    查询数据文件
+        select file_name from dba_data_files
+
 控制文件
     是一个二进制文件，记录了数据库的状态信息，如重做日志文件与数据文件的名字和位置，归档重做日志的历史等，归档日志的历史记录会让该
 文件逐渐变大，但其大小不会超过64MB，控制文件和数据库是一一对应的关系
@@ -649,5 +653,104 @@ imp恢复数据库(导入)
         使用参数文件 D:\>expdp scott/tiger@oracle parfile=参数文件的绝对路径
     计算导出数据库所需要的空间
         D:\>expdp system/oracle@oracle full=y estimate_only=y estimate=statistics nologfile=y
+
+
+rman
+    如果数据库处于open read write状态执行备份，数据库必须置于归档模式
+    host命令可以暂时退出rman的操作台返回系统的操作台，系统控制台输入exit可切换回到rman的操作台
+    备份类型：
+        镜像复制：创建日志文件，数据文件，控制文件等的备份，等同于复制一份
+        备份集：rman创建的具有特定格式的逻辑备份对象，备份集在逻辑上由一个或多个备份片段组成，每个片段在物理上对应一个操作系
+    统文件，一个备份片段中可能包含多个数据文件，控制文件或归档文件，其优势在于备份时只读取数据库中已经使用的数据块，提升备份效率
+
+    执行方式：以backup开始
+        单个执行：rman> backup database;
+        批处理：rman>run{......},将多个命令放在一起组成一个命令组，若其中任何一条命令执行失败则其后的所有命令都不被执行
+        运行脚本
+            1.用命令行调用操作系统中的脚本 D:\> rman /@脚本名称(或者 /cmdfile=脚本名称)))
+            2.在rman中执行操作系统中的脚本 rman>@脚本名称
+            3.运行存储在catalog中的脚本（需首先为rman创建恢复目录） rman>run{execute script 脚本名称}
+
+    备份整个数据库(若数据库处于open read write 状态，数据库必须置于归档模式)
+        backup database;(此命令默认将备份保存至Oracle的安装目录)
+        backuo database format '路径'（通过format参数自定义路径和命名规则）
+    查看全库备份
+        list backup of database;
+        
+    备份表空间（只要实例处于加载状态，无论数据库是否打开都可以进行表空间的备份）
+        backup tablespace 表空间名称;
+        backup tablespace 表空间名称 format '路径'
+    查看表空间备份
+        list backup of tablespace 表空间名
+
+    备份数据文件
+        backup datafile '数据文件名称路径'/数据文件id
+    查看数据文件备份
+        list backup of datafile n（为数据文件id）
+
+    备份控制文件  
+        1.手动执行备份命令 backup current controlfile
+        2.执行backup命令时指定include current controlfile子句 backup database include current controlfile 
+            每一次备份任务的时候都会备份一次控制文件
+        3.备份数据库的第一个数据文件,此时也会备份控制文件 backup datafile 1;
+        4.通过configure命令将controlfile autobackup设置为on  configure controlfile autobackup on 
+             每一次备份任务的时候都会备份一次控制文件
+    查看控制文件备份
+        list backup of controlfile 
+
+    备份归档文件
+        1. backup archivelog all;(all指备份当前所有可以访问到的归档文件)
+        2. 执行backup命令时指定plus archivelog
+            该语句会依次执行下列步骤
+            1. 运行alter system archive log current 对当前重做日志文(redolog)件进行归档 
+            2. 执行backup archivelog all命令备份所有已归档日志
+            3. 对本次backup命令要备份的内容进行备份
+            4. 再次运行alter system archive log current 对当前重做日志文(redolog)件进行归档 
+            5. 将新产生的尚未备份的归档日志进行备份
+            在backup命令后加入 delete all input 参数，会在完成备份之后自动删除已备份的归档日志，即删除上述过程中的第一次备份的文件
+    查看归档文件的备份
+        list backup of archivelog all;
+
+    备份参数文件(备份控制文件时会自动备份)
+        backup spfile;
+
+    备份备份集
+        backup backupset all;(备份所有备份集，该命令会直接复制当前的备份集，建立一个一模一样的备份集)
+
+    rman常用命令
+        1. show：通过show命令显示当前的配置参数 showshow all; 
+        2. list：列出数据库中所有的备份信息 list backup；列出相对应的备份信息 list backup of ;列出所有无效备份list expired backup
+        3. delete：删除备份记录及相应的物理文件
+            删除过期备份：delete obslete
+            删除无效备份：delete expired backup 删除expired副本：delete expired copy
+            删除特定备份集：delete backupset 备份集id  删除特定的备份片 delete backuppiece
+
+    report：对当前备份信息的分析
+        report need backup ：查看所有需要备份的文件
+        report need backup tablespace 表名称：查看指定的表空间是否需要备份
+        report obslete ：查看过期备份
+
+    crosscheck：用来检查备份或归档物理文件的状态，如果物理文件存在，并且控制文件或恢复目录中有匹配记录，则标记该对象状态为available(有效)
+        若文件不存在，则标记该对象状态为expired（无效）
+        crosscheck archivelog all 检查所有归档文件
+        crosscheck backup 检查所有备份集
+
+    change：修改备份文件或归档文件的状态，不是指物理文件而是这些文件在控制文件或恢复目录中对应记录的状态分别为available(可用),
+    unavailable(不可用)
+        change backup of tablespace users unavailable 修改指定表空间状态为不可用
+        change archivelog logseq=n unavailable 修改指定归档文件状态为不可用
+        change archivelog logseq=n delete 删除指定的归档文件
+
+
+    
+    
+
+
+
+    删除指定的备份
+        delete backupset bs关键字序号
+
+
+
 
 
