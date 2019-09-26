@@ -93,5 +93,10 @@ day 8
     column：纵队，列
     benchmark：用于基准问题测试，基准，标准检查程序
     current：现在发生的，现在的，当前的
-    schema：纲要，数据库中指数据库的组织和结构  
-    
+    schema：纲要，数据库中指数据库的组织和结构 
+    obsolete：废弃的，淘汰的，过时的 
+    retention：保留，保持
+    optimization：最优，最恰当
+    channel：渠道，途径
+    parallelism：并行，平行
+    copies：copy的复数
