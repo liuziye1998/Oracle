@@ -928,6 +928,7 @@ rman
         5. V$SESSION
         6. V$PROCESS
         7. V$SESSION_LONGOPS
+        8. V$BACKUP_CORRUPTION
 
 
     删除指定的备份
