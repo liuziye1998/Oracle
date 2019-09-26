@@ -922,6 +922,7 @@ rman
         1. V$ARCHIVED_LOG 
         2. V$BACKUP_SET
         3. V$BACKUP_PIECE
+            关联视图 V$BACKUP_PIIECE_DETAILS
         4. V$BACKUP_CORRUPTION
             关联视图 V$BACKUP_SET_DETAILS,V$BACKUP_SET_SUMMARY
         5. V$SESSION
