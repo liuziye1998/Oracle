@@ -60,3 +60,6 @@ onekeeper运维工具箱网络问题
     方法1.使用命令sudo setip-eth0将IP设为本机IP相同的网络位
     方法2.编辑 /etc/sysconfig/network-scripts/ifcfg-eth0 添加IP信息 或设置BOOTPROTO=DHCP
 	执行sudo systemctl restart network重启网络服务
+
+
+configure archivelog deletetion policy配置文档删除策略 暂不熟悉
