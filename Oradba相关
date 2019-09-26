@@ -761,7 +761,7 @@ rman
 
     基于时间保存备份的策略
         configure retention policy to recovery window of n days; n为正整数；
-        最早可以将数据库恢复到几天前的状态（各个数据文件必须满足 sysdate - backup checkpoint time >=n才行）
+        备份保留多少天的时间（各个数据文件必须满足 sysdate - backup checkpoint time >=n才行）
         （此方式受控制文件中control_file_record_keep_time参数的影响）
     
     基于冗余数量的备份保存策略
@@ -790,8 +790,143 @@ rman
         3. configure channel device type sbt/disk format...;
         4. configure channel n device type sbt/disk format...;
 
+    复合备份(duplexed方式备份)
+    三种方式实现
+        1. backup copies 3 database;使用copies参数在备份的同时自动生成当前备份集的2份备份到默认备份目录
+        2. run{set backup copies 2; backup device type disk format 'D:\backup1\%U','D:\backup2\%U' tablespace users,sales;}
+            上述命令生成两份备份集分别存储到'D:\backup1','D:\backup2' 目录下
+        3. 利用configure...backup copies命令指定设备类型和备份复制的数量，此命令仅适用于数据文件，归档重做日志文件和备份，并且只有在
+            使用自动分配的通道时才能使用
+            configure default device type to disk;
+            configure datafile backup copies for deivce type disk to 2;
+            configure archivelog backup copies for device type disk to 2;
+
+    设置备份集属性
+        1. 设置备份片段文件名（默认会自动生成一个唯一的名称），使用format参数
+            分配通道时指定备份片段命名格式
+            run {allocate channel c1 device type disk format 'D:\backup2\cc_%U';backup tablespace users;}
+            执行备份命令时指定备份片段命名格式
+            backup tablespace users format 'D:\backup2\cc_%U'
+        
+        2. 设置备份集标签（即TAG,每个备份都会有默认会自动生成，其中TAG和T是固定字符默认格式为TAGyyyymmttThhmmss,分别对应操作时间）
+            backup tablespace users TAG tbs_qwer
+            同时，TAG标签也可以市委备份集的别名
+
+    创建控制文件快照，用于控制文件的读一致性
+        configure snapshot contorlfile name to 'd:\backup\file.ora'
+
+    设置备份片段，备份集大小
+        分配通道时maxpiecesize参数转门指定备份片段大小
+            run {allocate channel c1 device type disk maxpiecesize=10m 'D:\backup2\cc_%U';backup tablespace users; }
+            备份users表空间时指定单个片段最大不超过10M；
+        指定备份集的大小
+            backup database maxpiecesize=10m
+            指定单个备份集合大小为10m
+
+    恢复目录（catalog）：一个专门的备份信息存储地
+        优点
+            1. 存储rman脚本
+            2. 保留更多的历史备份信息
+            3. 同时管理与备份多个目标数据库
+        创建步骤
+        1. 创建一个独立的表空间
+            create tablespace tmantbs datafile 'D:\backup\ramts.dbf' size 10m;
+        2. 创建一个独立的schema,用来记录备份信息，并授予相关权限
+            grant connect,resource,recovery_catalog_owner to rmanct identified by rmanct;   
+        3. 通过rman连接到新建的恢复目录
+            rman catalog rmanct/rmanct
+        4. 在rman中创建catalog
+            create catalog tablespace rmantbs;
+        使用恢复目录进行备份操作之前要在恢复目录中注册该数据库，注册命令如下
+            以catalog模式连接到目标数据库和恢复目录
+                rman target / catalog rmantbs/rmantbs@oracle
+            注册数据库
+                begsiter database 
+            注销数据库
+                unbegsiter database
+
+    是否启用备份优化
+        必须满足以下条件才能启用备份优化功能
+        1. configure backup optimization 参数设置为on 
+        2. 执行backup database或backup archivelog中带有all或like 参数
+        3. 分配的通道仅使用一种设备类型，不能同时使用sbt disk 
+        启用优化命令
+            configure backup optimization on;
+
+    压缩备份集
+        执行备份命令时3，加入 as compressed backupset选项启用压缩功能
+        backup as compressed backupset tablespace system;
+
+    加密备份集
+        configure命令，设置后除非显式修改否则将持续生效，
+        set encryption命令，设置后仅作用于本次会话，优先级大于configure，可将configure设置覆盖掉
+        用configure命令启用/关闭加密模式
+            configure encryption for database on/off ;
+            指定表空间集的加密
+                configure encryption for tablespace users on/off
+        用set encryption 命令加密备份集
+            set encryption on identified by encbak only;
+            上述命令设置了一个名为encbak的密钥（即密码模式），在其后创建的备份集在进行恢复时，必须使用该密钥才能正常操作
+
+    配置默认加密算法
+        configure encryption algorithm
+        通过V$rman_encryption_algorithm视图查询rman支持的加密算法
+        
+    rman实战
+        run{
+            configure retention policy to recovery window of 14 days;
+            configure controlfile autobackup on;
+            configure controlfile autobackup format for device type disk to 'd:\backup\%F';
+            allocate channel c1 device type disk format 'd:\backup\%U';
+            backup database skip inaccessible
+              plus archivelog filesperset 20
+              delete all input;
+        release channel c1;
+        }
+        allocate channel for maintenance device type disk;
+        crosscheck backupset;
+        delete noprompt obsolete;
+
+        backup skip 参数：
+            skip inaccessible：跳过不可读的文件
+            skip offline：跳过offline的数据文件
+        filesperset参数：设置一个备份集中最多包含的文件
+        allocate  channel for maintenance 专门为change,delete,crosscheck分配通道，不能包含在run块中
+
+        将某条更改过的配置在置为初始值
+            configure retention policy clear;
 
 
+    set进行会话级配置
+
+        常在run块外运行的命令
+            set echo on/off 打开或关闭回显
+        指定客户端信息
+            set command id to 'oracle'
+        指定数据库的数据库标识符，只能在nomount模式下执行
+            set dbid n（n为10为长度数字组成的字符串） 
+
+        常在run块内运行的命令
+            给数据文件指定新的路径和名称
+                RUN {allocate channel c1 device type disk;
+                    set newname for datafile 4 to 'd:\backup\cc.dbf'}
+            设置恢复到的时间点或scn
+                RUN {allocate channel c1 device type disk;
+                    set until time "to_data('2010-10-10 10:10:10','yyyy-mm-dd hh24:mm:ss')"}
+            定义备份片段的冗余数
+                RUN {allocate channel c1 device type disk;
+                    set backup copies 3;}
+
+
+    RMAN相关的动态视图
+        1. V$ARCHIVED_LOG 
+        2. V$BACKUP_SET
+        3. V$BACKUP_PIECE
+        4. V$BACKUP_CORRUPTION
+        5. V$SESSION
+        6. V$PROCESS
+        7. V$SESSION_LONGOPS
+        
 
     删除指定的备份
         delete backupset bs关键字序号
