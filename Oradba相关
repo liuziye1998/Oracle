@@ -358,11 +358,13 @@ conn 用户名/密码 as sysdba 以数据库管理员的身份连接数据库
         archive log list;
     设置数据库处于归档模式方法
         1.关闭数据库
-            shutdown IMMDEIATE
+            shutdown IMMEDIATE
         2.启动数据库到mount状态
             startup mount;
         3.设置数据库为归档模式
             alter database archivelog;
+            非归档模式
+            alter database noarchivelog;
         4.打开数据库到
             alter database open;
     
@@ -654,8 +656,66 @@ imp恢复数据库(导入)
     计算导出数据库所需要的空间
         D:\>expdp system/oracle@oracle full=y estimate_only=y estimate=statistics nologfile=y
 
+ （SQLLDR未补充完整）   
+SQLLDR：导入指定文件到数据库
+    1. 控制文件
+        LOAD DATA（控制文件一般以此开头）
+        INFIFLE （指定数据文件的位置，* 表示数据文件在控制文件中）
+        INTO TABLE 表名称
+        FIFLDS TERMINAIED BY "（指定分割符，如逗号等，option enclosed by '"'(指定分界符为双引号)）"
+        (...) （为上述表的列名，）
+        BEGINDATA（表示其后为待加载数据，仅当INFIFE）
+        ....
+    2. 日志文件
+        默认情况下SQLLDR命令执行时会自东产生一个与控制文件同名的日志文件，扩展名为.log
+    3. 错误文件
+        加载数据过程中，由于数据不符合规范导致加载错误，会产生一个同名的错误文件，扩展名为.bad
+    4. 废弃文件
+        废弃文件记录了为被插入的数据，文件扩展名为.dsc（该文件默认不存在须在执行SQLLDR时指定废弃文件，并确实存在不符合导入逻辑的记录）
+
+
+
+备份的概念及分类
+
+    备份的类型
+    1. 物理备份：其核心就是复制文件，将数据文件，控制文件，归档文件等Oracle启动时所需的物理文件，复制到其他路径或存储设备中
+    2. 逻辑备份：其核心就是复制数据，不管数据库中具体是哪些文件存储数据，只通过Oracle的命令通过逻辑的方式直接将数据保存在其他位置
+    
+    备份时数据库的状态
+    1. 热备份：数据库处于启动状态时创建的备份就是热备份，热备份一定是不一致备份，创建热备份时数据库一定要处于归档模式，否则创建的
+    备份可能无效，热备份不需要关闭数据库
+    2. 冷备份：数据库处于关闭状态时创建的备份就是冷备份，
+
+    备份的状态 
+    1. 一致性备份：备份的数据文件和控制文件具有相同的SCN称为一致性备份，数据库正常关闭，数据库未被置于打开状态或处于open read only 
+    时创建的备份才是一致性备份
+    2. 不一致性备份：数据库处于不一致状态时创建的备份就是不一致备份，数据库处于open read write状态或者以shutdown abort关闭时，均为
+    不一致状态，创建不一致性的备份除了备份数据文件，控制文件外还需要备份归档日志文件
+
+    备份规模
+    1. 完全备份：整个数据库的备份，在归档模式下数据库正常打开或关闭状态下创建的备份都是有效的，非归档模式中只有数据库正常关闭状态下
+    创建的备份才是有效备份
+    2. 表空间备份：备份所有隶属于指定表空间的数据文件，当数据库处于归档模式或表空间为只读，脱机状态时创建的表空间备份才是有效备份
+    3. 数据文件备份
+    4. 控制文件备份
+    5. 归档日志文件备份
+
+    恢复类型
+    1. 实例恢复：读取数据文件和联机重做文件，使数据文件和控制文件恢复到崩溃前的状态，由Oracle自动进行
+        1.1 前滚（缓存恢复）：通过重做日志重现崩溃前对数据库进行的修改，将已提交尚未写入数据文件的数据写入数据文件中，
+        1.2 回滚（事务恢复）：将为提交却写入数据文件的数据，从数据文件中撤销
+    2. 介质恢复：指数据文件的修复
+
 
 rman
+
+    连接到目标数据库
+    1. 选择要连接的实例
+        set ORACLE_SID=oracle
+        connect target 用户名/密码
+    2. connect target 用户名/密码@oracle
+    3. connect target /  
+
     如果数据库处于open read write状态执行备份，数据库必须置于归档模式
     host命令可以暂时退出rman的操作台返回系统的操作台，系统控制台输入exit可切换回到rman的操作台
     备份类型：
@@ -810,7 +870,7 @@ rman
         
         2. 设置备份集标签（即TAG,每个备份都会有默认会自动生成，其中TAG和T是固定字符默认格式为TAGyyyymmttThhmmss,分别对应操作时间）
             backup tablespace users TAG tbs_qwer
-            同时，TAG标签也可以市委备份集的别名
+            同时，TAG标签也可以视为备份集的别名
 
     创建控制文件快照，用于控制文件的读一致性
         configure snapshot contorlfile name to 'd:\backup\file.ora'
@@ -854,7 +914,7 @@ rman
             configure backup optimization on;
 
     压缩备份集
-        执行备份命令时3，加入 as compressed backupset选项启用压缩功能
+        执行备份命令时，加入 as compressed backupset选项启用压缩功能
         backup as compressed backupset tablespace system;
 
     加密备份集
@@ -893,8 +953,8 @@ rman
         filesperset参数：设置一个备份集中最多包含的文件
         allocate  channel for maintenance 专门为change,delete,crosscheck分配通道，不能包含在run块中
 
-        将某条更改过的配置在置为初始值
-            configure retention policy clear;
+    将某条更改过的配置在置为初始值
+        configure retention policy clear;
 
 
     set进行会话级配置
@@ -931,8 +991,27 @@ rman
         8. V$BACKUP_CORRUPTION
 
 
-    删除指定的备份
+删除备份
+
+    1. 删除指定的备份集
         delete backupset bs关键字序号
+    2. 删除过期备份(根据备份冗余策略确定备份是否过期)
+        delete obsolete 
+    3. 删除无效备份
+        delete expired backup;
+    4. 删除expired副本（未操作）
+        delete expired copy;
+    5. 删除特定备份片断（未操作）
+        delete backuppiece '路径'
+    6. 删除所有备份集
+        delete backup;
+    7. 删除特定映像副本（位操作）
+        delete datafile copy '路径'
+    8. 删除所有映像（未操作）
+        delete copy;
+    9. 在备份后删除输入对象
+        backup archivelog all delete input 
+        delete backupset 22 format='路径' delete input
 
 
 
