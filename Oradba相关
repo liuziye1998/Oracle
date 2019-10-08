@@ -716,6 +716,9 @@ rman
     2. connect target 用户名/密码@oracle
     3. connect target /  
 
+    一：备份
+
+
     如果数据库处于open read write状态执行备份，数据库必须置于归档模式
     host命令可以暂时退出rman的操作台返回系统的操作台，系统控制台输入exit可切换回到rman的操作台
     备份类型：
@@ -733,7 +736,7 @@ rman
 
     备份整个数据库(若数据库处于open read write 状态，数据库必须置于归档模式)
         backup database;(此命令默认将备份保存至Oracle的安装目录)
-        backuo database format '路径'（通过format参数自定义路径和命名规则）
+        backup database format '路径'（通过format参数自定义路径和命名规则）
     查看全库备份
         list backup of database;
         
@@ -991,27 +994,104 @@ rman
         8. V$BACKUP_CORRUPTION
 
 
-删除备份
+    删除备份
 
-    1. 删除指定的备份集
-        delete backupset bs关键字序号
-    2. 删除过期备份(根据备份冗余策略确定备份是否过期)
-        delete obsolete 
-    3. 删除无效备份
-        delete expired backup;
-    4. 删除expired副本（未操作）
-        delete expired copy;
-    5. 删除特定备份片断（未操作）
-        delete backuppiece '路径'
-    6. 删除所有备份集
-        delete backup;
-    7. 删除特定映像副本（位操作）
-        delete datafile copy '路径'
-    8. 删除所有映像（未操作）
-        delete copy;
-    9. 在备份后删除输入对象
-        backup archivelog all delete input 
-        delete backupset 22 format='路径' delete input
+        1. 删除指定的备份集
+            delete backupset bs关键字序号
+        2. 删除过期备份(根据备份冗余策略确定备份是否过期)
+            delete obsolete 
+        3. 删除无效备份
+            delete expired backup;
+        4. 删除expired副本（未操作）
+            delete expired copy;
+        5. 删除特定备份片断（未操作）
+            delete backuppiece '路径'
+        6. 删除所有备份集
+            delete backup;
+        7. 删除特定映像副本（位操作）
+            delete datafile copy '路径'
+        8. 删除所有映像（未操作）
+            delete copy;
+        9. 在备份后删除输入对象
+            backup archivelog all delete input 
+            delete backupset 22 format='路径' delete input
+
+        
+  二：恢复
+    
+    1.完全介质恢复：数据库只剩下控制文件和spfile，但是创建过全库备份，且执行过备份操作后所有的归档文件和重做日志文件还在，此时
+      可以将数据库恢复到崩溃前的状态此恢复方法称为完全介质恢复
+    
+    执行完全介质参数有以下三个步骤(归档模式下进行)
+        1.启动数据库到加载状态
+            startup mount;
+        2.执行恢复操作
+            1). restore database;
+            2). recover database delete archivelogs skip tablespace temp;
+            delete archivelogs：表示rman在完成恢复后自动删除在恢复过程中产生的归档日志文件
+            skip tablespace：跳过指定的表空间
+            maxsize：指定恢复过程中自动产生的归档文件最大可占空间若超过该值则该部分文件被应用后马上删除
+        3. alter database open;
+    
+    2. 恢复表空间（表空间必须处于脱机状态）
+        SQL 'ALTER TABLESPACE XXX OFFLINE IMMEDIATE';（将表空间设为脱机）
+        RESTORE TABLESPACE XXX;
+        RECOVER TABLESPACE XXX;
+        SQL 'ALTER TABLESPACE XXX ONLINE';（将表空间设为连机）
+    
+    3. 恢复数据文件（数据文件必须处于脱机状态） 
+        SQL 'ALTER DATABASE DATAFILE 文件序号或路径 OFFLINE'
+        RESTORE DATAFILE 文件序号或路径;
+        RECOVER DATAFILE 文件序号或路径;
+        SQL 'ALTER DATABASE DATAFILE 文件序号或路径 ONLINE';
+        若由于磁盘损坏导致数据文件无法访问，须在执行restore之前给数据文件指定新的路径
+        run{
+            set newname for datafile 3 to 'f:\oracle\oradata\newdb\wer.dbf';
+            restore datafile 3;
+            switch datafile 3;
+            recover datafile 3;
+        }
+
+    4. 恢复归档日志文件
+        1). restore archivelog sequence between 20 and 30;（恢复序列号为20到30之间的归档文件）
+        2). run{
+            set archivelog destination to 'f:\oracle\backup';
+            restore archivelog sequence between 20 and 30; 
+        }将恢复出来的归档日志文件放在其他路径下
+
+    5. 恢复控制文件
+        1). 从自动备份中恢复
+            启动数据库之前必须设置DBID（自动备份时文件名中包含DBID,V$DATABASE查询该视图可以获得）
+            set DBID=XXXXXXX;
+            启动数据库
+            startup nomount;
+            从自动备份中恢复控制文件
+                恢复至默认路径下
+                restore controlfile from autobackup;
+                恢复到指定的路径下
+                restore controlfile to 'f:\oracle\newdb\control01.ct1' from autobackup;
+        2). 从备份集中恢复
+            启动数据库之前必须设置DBID（自动备份时文件名中包含DBID,V$DATABASE查询该视图可以获得）
+            set DBID=XXXXXXX;
+            启动数据库
+            startup nomount;
+            指定控制文件所在备份片段的详细路径
+            restore controlfile from 'f:\oracle\backup\shfie';
+    
+    6. 恢复spfile
+        启动数据库之前必须设置DBID（自动备份时文件名中包含DBID,V$DATABASE查询该视图可以获得）
+            set DBID=XXXXXXX;
+            启动数据库
+            startup nomount;
+            恢复至默认路径下
+                restore spfile from autobackup;
+            恢复到指定路径
+                restore spfile to 'd:\oracle\tmp\spfile.ora' from autobackup;
+            从指定的备份文件恢复到指定的路径
+                 restore spfile to 'd:\oracle\tmp\spfile.ora' from 'f:\oracle\backup\shfie';
+    
+
+
 
 
 
