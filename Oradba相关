@@ -503,7 +503,61 @@ imp恢复数据库(导入)
             conn 用户名/密码
             create directory 目录对象名 as '目录的路径';(操作系统不会自动创建此目录，须手动进行创建)
 
-    导入IMPDP(服务器端实用导入程序)，将备份的数据导入到整个数据库，特定的模式，特定的表或特定的表空间，也可在不同平台的数据
+    导出EXPDP(服务器端导出程序)，ADD_FILE是其专有参数，允许挂起和恢复作业，也支持从失败或终止的作业中重启，导出数据库对象的选择更加的细化，
+并且提供并行处理，expdp支持两种数据访问的方法外部表和直接路径访问方法，expdp提供了三种提取数据的方法，一是只提取数据库中的 元数据，
+二是只提取数据库中的数据，三是同时提取元数据和数据
+
+    导出参数
+        1.attach：连接到现有作业，格式为attach=作业名
+        2.content：说明要导出的是元数据还是数据，参数为all,data_only,metadata_only
+        3.directory：说明要导出的备份文件，日志文件和sql文件的存储目录，非dba用户需要提前设置该目录
+        4.dumpfile：说明导出备份的文件名
+        5.estimate：计算导出作业导出文件的大小，选项为blocks(基于数据库块大小的倍数计算备份文件大小)，
+            statistics(使用当前对象的统计量来计算导出的备份文件的大小)
+        6.estimate_only：只估计导出文件的大小，不进行实际的导出作业，参数为Y或N
+        7.exclude：排除不需要导出的特定的对象
+        8.flashback_scn：使用Oracle的闪回特性，使用规定的scn进行闪回
+        9.full：说明是否导出整个数据库对象
+        10.include：说明要导出的特定对象，如有多个使用逗号隔开，如只导出表，此时会导出和表有依赖关系的对象，如索引，触发器等
+        11.job_name：说明导出作业名，命名格式为sys_operation(导入/导出)_mode(数据类型)_nm(编号)
+            如导出scott用户的元数据"scott"."sys_export_schema_01"
+        12.logfile：说明在导出时记录导出过程的日志文件名，默认名为export.log必须和导出文件保存在相同的目录下，即directory参数指定的目录
+        13.parallel：设置可同时导出作业时最大的进程数，默认为1
+        14.query：允许使用sql语句程序过滤导出的数据
+        15.schemas：说明要导出的模式(用户所拥有的数据库对象的集合)，要使用该参数登录数据库的用户必须拥有exp_full_database的权限
+             对象：包括索引，表，视图，函数，包，过程，同义词，序列，触发器
+        16.status：监视导入作业的频率，默认值为0
+        17.tables：说明要导出的表名,会导出与表有关系的对象
+        18.tablespaces：说明要导出的表空间的列表，同时也导出与表空间有依赖关系的所有数据库对象
+        19.version：将数据库对象导出到指定的数据库版本，解决数据库对象从高版本到低版本迁移时版本兼容的问题
+    交互式参数
+        1.add_file：向备份文件中添加文件以增加目录空间，解决因备份文件空间不足导致停止的问题
+        2.stop_job：停止运行的数据泵作业，数据库服务器端的导出数据服务器进程终止
+        3.start_job ：重新恢复意外停止的数据泵作业
+        4.kill_job ：杀死客户机进程和数据泵作业
+        5.continue_client：退出交互模式恢复正在运行的导出数据泵作业，实际的数据泵作业不受影响
+        6.exit_client：停止交互式会话，实际的数据泵作业不受影响
+    导出整个数据库
+        D:\>expdp system/oracle@oracle dumpfile=pump_dir(目录):mydb_%u.dat(文件名,若文件存储空间不足%u实现备份文件自动创建)
+         filesize=100m nologfile=y job_name=tom full=y
+    导一个模式（没有schema参数，默认导出登录数据库时的模式对象）
+        D:\>expdp scott/tiger@oracle directory=pump_dir（目录） dumpfile=scottschema.dmp 
+        logfile=scottschema.log
+    导出一个特定的表
+        D:\>expdp system/oracle@oracle dumpfile=pump_dir:scott_tables_%u.dat tables=scott.emp,scott.dept
+        nologfile=y job_name=only_scott
+    导出特定的表空间
+        D:\>expdp system/oracle@oracle dumpfile=pump_dir:user_tbs_%u.dmp tablespace=users(表空间名) filesize=100m
+        paraller=2 logfile=users_tbs.log job_name=exp_users_tbs
+    只导出数据行
+        D:\>expdp system/oracle@oracle dumpfile=pump_dir:mydb_dataonly_%u.dat filesize=100m job_name=larry
+        full=y content=data_only logfile=pump_dir:mydb_exp_dataonly_log
+    使用参数文件导出或导入
+        编辑参数文件并保存以.par结束
+        使用参数文件 D:\>expdp scott/tiger@oracle parfile=参数文件的绝对路径
+    计算导出数据库所需要的空间
+        D:\>expdp system/oracle@oracle full=y estimate_only=y estimate=statistics nologfile=y
+ 导入IMPDP(服务器端实用导入程序)，将备份的数据导入到整个数据库，特定的模式，特定的表或特定的表空间，也可在不同平台的数据
 库之间迁移表空间 SQLFILE是其专有参数
     导入参数
         1.目录和文件相关参数
@@ -601,60 +655,6 @@ imp恢复数据库(导入)
             include=table,trugger
             table_exits_action=replace
 
-    导出EXPDP(服务器端导出程序)，ADD_FILE是其专有参数，允许挂起和恢复作业，也支持从失败或终止的作业中重启，导出数据库对象的选择更加的细化，
-并且提供并行处理，expdp支持两种数据访问的方法外部表和直接路径访问方法，expdp提供了三种提取数据的方法，一是只提取数据库中的 元数据，
-二是只提取数据库中的数据，三是同时提取元数据和数据
-
-    导出参数
-        1.attach：连接到现有作业，格式为attach=作业名
-        2.content：说明要导出的是元数据还是数据，参数为all,data_only,metadata_only
-        3.directory：说明要导出的备份文件，日志文件和sql文件的存储目录，非dba用户需要提前设置该目录
-        4.dumpfile：说明导出备份的文件名
-        5.estimate：计算导出作业导出文件的大小，选项为blocks(基于数据库块大小的倍数计算备份文件大小)，
-            statistics(使用当前对象的统计量来计算导出的备份文件的大小)
-        6.estimate_only：只估计导出文件的大小，不进行实际的导出作业，参数为Y或N
-        7.exclude：排除不需要导出的特定的对象
-        8.flashback_scn：使用Oracle的闪回特性，使用规定的scn进行闪回
-        9.full：说明是否导出整个数据库对象
-        10.include：说明要导出的特定对象，如有多个使用逗号隔开，如只导出表，此时会导出和表有依赖关系的对象，如索引，触发器等
-        11.job_name：说明导出作业名，命名格式为sys_operation(导入/导出)_mode(数据类型)_nm(编号)
-            如导出scott用户的元数据"scott"."sys_export_schema_01"
-        12.logfile：说明在导出时记录导出过程的日志文件名，默认名为export.log必须和导出文件保存在相同的目录下，即directory参数指定的目录
-        13.parallel：设置可同时导出作业时最大的进程数，默认为1
-        14.query：允许使用sql语句程序过滤导出的数据
-        15.schemas：说明要导出的模式(用户所拥有的数据库对象的集合)，要使用该参数登录数据库的用户必须拥有exp_full_database的权限
-             对象：包括索引，表，视图，函数，包，过程，同义词，序列，触发器
-        16.status：监视导入作业的频率，默认值为0
-        17.tables：说明要导出的表名,会导出与表有关系的对象
-        18.tablespaces：说明要导出的表空间的列表，同时也导出与表空间有依赖关系的所有数据库对象
-        19.version：将数据库对象导出到指定的数据库版本，解决数据库对象从高版本到低版本迁移时版本兼容的问题
-    交互式参数
-        1.add_file：向备份文件中添加文件以增加目录空间，解决因备份文件空间不足导致停止的问题
-        2.stop_job：停止运行的数据泵作业，数据库服务器端的导出数据服务器进程终止
-        3.start_job ：重新恢复意外停止的数据泵作业
-        4.kill_job ：杀死客户机进程和数据泵作业
-        5.continue_client：退出交互模式恢复正在运行的导出数据泵作业，实际的数据泵作业不受影响
-        6.exit_client：停止交互式会话，实际的数据泵作业不受影响
-    导入出整个数据库
-        D:\>expdp system/oracle@oracle dumpfile=pump_dir(目录):mydb_%u.dat(文件名,若文件存储空间不足%u实现备份文件自动创建)
-         filesize=100m nologfile=y job_name=tom full=y
-    导入一个模式（没有schema参数，默认导出登录数据库时的模式对象）
-        D:\>expdp scott/tiger@oracle directory=pump_dir（目录） dumpfile=scottschema.dmp 
-        logfile=scottschema.log
-    导出一个特定的表
-        D:\>expdp system/oracle@oracle dumpfile=pump_dir:scott_tables_%u.dat tables=scott.emp,scott.dept
-        nologfile=y job_name=only_scott
-    导出特定的表空间
-        D:\>expdp system/oracle@oracle dumpfile=pump_dir:user_tbs_%u.dmp tablespace=users(表空间名) filesize=100m
-        paraller=2 logfile=users_tbs.log job_name=exp_users_tbs
-    只导出数据行
-        D:\>expdp system/oracle@oracle dumpfile=pump_dir:mydb_dataonly_%u.dat filesize=100m job_name=larry
-        full=y content=data_only logfile=pump_dir:mydb_exp_dataonly_log
-    使用参数文件导出或导入
-        编辑参数文件并保存以.par结束
-        使用参数文件 D:\>expdp scott/tiger@oracle parfile=参数文件的绝对路径
-    计算导出数据库所需要的空间
-        D:\>expdp system/oracle@oracle full=y estimate_only=y estimate=statistics nologfile=y
 
  （SQLLDR未补充完整）   
 SQLLDR：导入指定文件到数据库
