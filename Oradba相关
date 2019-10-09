@@ -557,6 +557,8 @@ imp恢复数据库(导入)
         使用参数文件 D:\>expdp scott/tiger@oracle parfile=参数文件的绝对路径
     计算导出数据库所需要的空间
         D:\>expdp system/oracle@oracle full=y estimate_only=y estimate=statistics nologfile=y
+
+        
  导入IMPDP(服务器端实用导入程序)，将备份的数据导入到整个数据库，特定的模式，特定的表或特定的表空间，也可在不同平台的数据
 库之间迁移表空间 SQLFILE是其专有参数
     导入参数
