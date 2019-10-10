@@ -1094,6 +1094,68 @@ rman
     
 
 
+flashblack：闪回，回滚，回退
+    flashback query：恢复记录
+        获取scn
+        select current_scn * from V$database;
+
+        as of timestamp：基于时间
+            select * from test as of timestamp sysdate-5/1440;查看5分钟之前test表的状态
+        as of scn：基于scn 
+            select * from test as of scn 1249033; 查看scn号为1249033时test表的状态
+        insert into test select * from test as of timestamp sysdate-5/1440;将test表回退到5分钟之前的状态
+        insert into test select * from test as of scn 149033; 将test表回退到scn号为149033时的状态
+
+        scn和sysdate的转换
+        timestamp_to_scn：时间转换为scn
+            select timestamp_to_scn(sysdate) from dual;
+        scn_to_timestamp：scn转化为时间
+            select scn_to_timestamp(149033) from dual;
+            select to_char(scn_to_timestamp(149033),'yyyy-mm-dd') from dual;转换为指定的格式
+    
+    注意事项
+        undo表空间中相关的数据过期或被覆盖后，将无法闪回
+        设置alter tablespace undotbs1(undo表空间名称) retention guarantee;设置之后在有效期内不会覆盖undo表空间内未过期的数据
+        对表做过DDL操作后，包括drop/modify列，move表，drop分区等操作都会使得undo表空间中的闪回数据失效
+
+    flashback table和recycle bin 
+        flashback table：恢复表
+        recycle bin：被删除的表并非真正删除，而是先通过修改数据字典的方式，将其改名并放入recycle bin中；
+        flashback table和recyclebin组合使用
+        练习一：
+            1.drop table test1;删除表test1
+            2.select object_name,original_name from recyclebin;在recyclebin中查询删除记录
+            3.flashback table test1 to before drop; 使用flashback table将test1表闪回到删除之前
+            4.select index_name from user_indexes where table_name='test1'; 查看test1的索引信息有没有恢复，若没有执行下一步
+            5.alter index "第四步中查到的索引名称" rename to i_test1;
+            第4，5步有待论证
+        练习二：
+            1.drop table test1;
+            2.create table test1 as select * from test2; 创建一个新的表test1
+            3.flashback table test1 to before drop rename to test1_old; 因为有了新的test1表，所以闪回时要给表重新命名
+        练习三：
+            1.drop table test1;
+            2.create table test1 as select * from test2;
+            3.drop table test1;
+            4.select object_name,original_name,droptime from recyclebin;
+            5.flashback table test1 to before drop;
+            6.select object_name,original_name,droptime from recyclebin;
+            删除同名表多次，后删除的将会被先恢复
+            7.flashback table "recyclebin中表的索引值" to before drop; 恢复指定的表
+
+    从undo表空间内闪回(被操作的表需要开启行移动功能row movement)
+    flashback table tbname to scn/timestamp
+        查询是否启用行移动功能
+            select row_movement from user_tables where table_name='test1';
+        行移动功能启动
+            alter table test1 enable row movement;
+        行移动功能禁用
+            alter table test1 disable row movement;
+
+
+
+
+
 
 
 
