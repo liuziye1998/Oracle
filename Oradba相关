@@ -1152,6 +1152,43 @@ flashblack：闪回，回滚，回退
         行移动功能禁用
             alter table test1 disable row movement;
 
+        注意事项一：基于flashback table恢复
+            1.使用flashback table功能，被闪回的表必须启用row movement功能
+            2.DDL操作的影响
+            3.默认情况下执行恢复时会自动disable掉与其操作表相关的triggers，如需更改，则在执行恢复时附加enable trigger子句
+            4.索引会自动维护，但统计信息不会恢复到指定的时间点
+            5.不支持恢复，聚簇表，物化视图，高级队列表，系统表，远程表，对象表，嵌套表以及表分区，子分区；
+        
+        注意事项二：基于recyclebin的表恢复
+            1.若被操作表有主键约束，则恢复后该约束是disable状态，需要手动处理
+            2.不能恢复字典管理表空间中被删除的表
+            3.若对表的索引，约束有相关的规范，则恢复后需要手动更改
+            4.不能恢复依赖于该表的物化视图，需要手动重建
+            5.当数据文件空间不足时Oracle会首先清理被删除的表的索引，所以缺少索引是正常的
+            6.支持同时操作多个表，要么全成功，要么全失败
+            7.只能恢复drop命令删除的表
+
+    recycle bin：回收站
+
+        查看recyclebin中的对象
+            select * from recyclebin;
+            show recyclebin;
+        recyclebin中的对象可以被访问但不允许被修改查询时要指定对象在recyclebin中的对象名
+            select * from "BIN$9mpcXARaS3uHEFqUjjDSvA==$0";
+        同时支持flashback qurery功能查询
+            select * from "BIN$9mpcXARaS3uHEFqUjjDSvA==$0" as of scn=xxx/timestamp sysdate-5;
+        禁用和启用recyclebin 功能
+            针对当前会话禁用
+            alter session set recyclebin=off;
+            针对整个实例
+            alter system set recyclebin=off;或修改pfile中recyclebin中的参数值
+        直接删除跳过recyclebin
+            drop table test1 purge;
+                
+
+
+
+
 
 
 
