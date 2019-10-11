@@ -1010,7 +1010,7 @@ rman
             delete backuppiece '路径'
         6. 删除所有备份集
             delete backup;
-        7. 删除特定映像副本（位操作）
+        7. 删除特定映像副本（未操作）
             delete datafile copy '路径'
         8. 删除所有映像（未操作）
             delete copy;
@@ -1184,9 +1184,63 @@ flashblack：闪回，回滚，回退
             alter system set recyclebin=off;或修改pfile中recyclebin中的参数值
         直接删除跳过recyclebin
             drop table test1 purge;
-                
+        删除recyclebin中的对象
+            删除指定表
+            purge table test1;
+            purge table "BIN$9mpcXARaS3uHEFqUjjDSvA==$0";
+            删除表空间
+            purge tablespace xxx;
+            清空recyclebin
+            purge recyclebin;
 
+    flashback database：闪回数据库
+        启用要求
+            1.数据库必须处于归档模式
+            2.数据库必须指定flashback recovery area简称fra;(数据闪回区)
+                db_recovery_file_dest：指定fra的存储路径
+                db_recovery_file_dest_size:指定fra最大可用空间
+                设置方法
+                alter system set db_recovery_file_dest_size=10g;
+                alter system set db_recovery_file_dest='d:\test';
+            3.启动flashback database特性（该命令必须在mount模式时执行）
+                select flashback_on from V$database; 查看是否启用
+                alter database flashback on;启用flashback database特性
+            4.db_flashback_retention_target:控制闪回日志数据保留时间，默认值为1440，默认单位为minute；
+            5.启用force logging，用来强制所有操作均写入重做日志
+                select force_logging from V$database;判断数据库是否处于force logging模式
+                alter database force logging;将数据库置于force logging 模式
+        注意事项
+            1.不能恢复被删除的某个数据文件
+            2.若控制文件被重建，则之前的所有flashback logs全部失效
+            3.不支持对数据库执行过收缩（shrink）操作后的恢复
+        
+        模拟练习前期准备
+            1.检查是否启动了flashback recovery area;
+                show parameter db_recover;
+            2.检查是否处于归档模式
+                archive log list;
+            3.检查是否启用了force logging和flashback database;
+                select force_logging,flashback_on from V$database;
+            4. 查询当前的scn
+                select current_scn from V$database;
+            5.模拟删除
+                drop table test purge;
+                drop table test1 purge;
+                drop table test2 purge;
+            6.关闭数据库，启动到mount状态
+                shutdown immediate;
+            7.将数据回退到scn为149033时的状态
+                flashback database to scn 149033;
+            8. 打开数据库
+                法一 
+                    alter database open resetlogs;
+                    此方法会使得在scn号之后的所产生的数据全部丢失
+                法二（有待深入探讨）
+                    alter database open read only;
+                    
 
+            
+        
 
 
 
