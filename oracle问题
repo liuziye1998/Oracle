@@ -63,3 +63,18 @@ onekeeper运维工具箱网络问题
 
 
 configure archivelog deletetion policy配置文档删除策略 暂不熟悉
+
+ERROR:
+ORA-09925: Unable to create audit trail file
+Linux-x86_64 Error: 2: No such file or directory
+Additional information: 9925
+ORA-01075: you are currently logged on
+
+解决办法一：
+    ps -ef | grep smon
+    kill -9 杀掉相应的进程
+
+解决办法二：
+    检查$ORACLE_BASE/admin/adump文件的权限，重新赋值6755
+    详见：
+    http://www.itkeyword.com/doc/0032689612404719x825/ora-09925-linux-x86-64-error-2-no-such-file-or-directory
