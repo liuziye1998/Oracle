@@ -1,0 +1,41 @@
+###2019.10.19-10.20复习计划###
+####复习linux三剑客以及日常使用命令####
+****是否完成，完成状态****
+
+
+DB TIME=DB Wait time + DB CPU time  
+根据awr报告分析DB time
+  查看头部相关参数
+    elapsed:表示自然流逝的时间
+    DB time：表示数据库调用花费的时间
+  查看load profile 相关参数 
+    DB time(s):每自然秒，DB time 对应为多少秒
+    DB cpu(s): 每自然秒，CPU 对应的消耗时间
+      设db time为43.1秒  db cpu 为0.1秒 elapsed为10分钟
+      可推算出db time总耗时为43.1*60*10/60=431分钟
+             db cpu总耗时为0.1*60*10/60=1分钟
+             db wait time=431-1=430分钟
+      验算
+        通过查看top5事件中的首要事件的time  dbtime百分比  avg wait三个参数进行验算
+        avg wait与db time - db cpu 的值接近   time / dbtime 与dbtime百分比的值接近
+
+set autotrace 
+    SET AUTOTRACE OFF ---------------- 不生成AUTOTRACE 报告，这是缺省模式
+    SET AUTOTRACE ON EXPLAIN ------ AUTOTRACE只显示优化器执行路径报告
+    SET AUTOTRACE ON STATISTICS -- 只显示执行统计信息
+    SET AUTOTRACE ON ----------------- 包含执行计划和统计信息
+    SET AUTOTRACE TRACEONLY ------ 同set autotrace on，但是不显示查询输出
+    统计计划详情
+        Statistics
+        ----------------------------------------------------------
+        1728  recursive calls
+            0  db block gets  从buffer cache中读取的block的数量
+        600161  consistent gets  逻辑读次数 从buffer cache中读取的undo数据的block的数量
+            0  physical reads  物理读次数 从磁盘读取的block的数量
+            0  redo size  DML生成的redo的大小
+            673  bytes sent via SQL*Net to client
+            492  bytes received via SQL*Net from client
+            2  SQL*Net roundtrips to/from client
+            42  sorts (memory)  在内存执行的排序量
+            0  sorts (disk)  在磁盘上执行的排序量
+            1  rows processed
