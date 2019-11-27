@@ -38,4 +38,12 @@ set autotrace
             2  SQL*Net roundtrips to/from client
             42  sorts (memory)  在内存执行的排序量
             0  sorts (disk)  在磁盘上执行的排序量
-            1  rows processed
+            1  rows processed  sql语句处理或返回了多少行，能直观的看出来，这个sql能不能优化。
+
+优化器分类：RBO和CBO
+    相同点：首先解析有索引的列值，一致性索引的逻辑读次数始终会比非一致性索引的次数少一次，连表查询时，from右边的表为主表，左边的
+        附表
+
+    索引全扫描的条件之一：目标索引列的属性是not null 
+
+
