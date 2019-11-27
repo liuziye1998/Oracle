@@ -253,3 +253,20 @@ select查询
         alter session set nls_date_format='yyyy/mm/dd';
 
     算术运算符：可用在数字和日期列上
+
+
+连表查询（内连接）
+    Oracle特有的内连接方式 select emp.empno,emp.ename,emp_temp.job from emp,emp_temp where emp.empno=emp_temp.empno;
+    join on 方式 select emp.empno,emp.ename,emp_temp.job from emp join emp_temp on (emp.empno=emp_temp.empno);
+        (括号里表示筛选条件)
+    join using 方式 select empno,emp.ename,emp_temp.job from emp join emp_temp on (empno);
+        (括号内的筛选条件只能为列名，且该列出现在前方的查询列中，则该列前不能带上表名或者表的别名)
+    natural join：select emp.empno,emp.ename,emp_temp.job from emp natural join emp_temp;
+        此方法仅限两个表的列同名且含义上完全一致 
+
+连表查询（外连接）
+  左连接
+    目标表1 left outer join 目标表2 on (连接条件)
+    目标表1 left outer join 目标表2 using (连接列集合)
+        
+
