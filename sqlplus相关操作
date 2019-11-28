@@ -10,3 +10,5 @@ list(L)和n指令
 del
 
 set line 列宽度 
+
+col 列名 for a20 设置列的显示长度为20个字节
