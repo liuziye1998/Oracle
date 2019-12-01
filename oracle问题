@@ -61,6 +61,12 @@ onekeeper运维工具箱网络问题
     方法2.编辑 /etc/sysconfig/network-scripts/ifcfg-eth0 添加IP信息 或设置BOOTPROTO=DHCP
 	执行sudo systemctl restart network重启网络服务
 
+onekeeper运维工具箱数据据配置问题
+    添加数据库时所在系统环境提示无监听程序
+    解决办法：进入Oracle安装家目录下/bin/network/admin查看监听配置文件所指定的内容
+    进入系统配置文件中/etc/hosts的配置信息
+    通过ps -ef|grep smon查看数据库实例名
+
 
 configure archivelog deletetion policy配置文档删除策略 暂不熟悉
 
@@ -78,3 +84,20 @@ ORA-01075: you are currently logged on
     检查$ORACLE_BASE/admin/adump文件的权限，重新赋值6755
     详见：
     http://www.itkeyword.com/doc/0032689612404719x825/ora-09925-linux-x86-64-error-2-no-such-file-or-directory
+
+
+堡垒机连接服务器提示port22 connection refuesd
+
+解决办法
+1.检查是否安装了openssh-server
+
+ps -e|grep ssh
+
+    1
+
+    1
+
+如果只出现了一个ssh，说明没有安装可以自行上网解决，一般centos是默认安装的，不会出现这种情况。
+2.sshd未启动
+
+service sshd restart
