@@ -1,0 +1,20 @@
+闩相关概念
+    kcbgtcr是Oracle rdbms中重要的获取一致性读的函数，其含义为Kernal Cache Buffer GeT Cosistents Read，显然该函数存在两种获取
+cache buffers chains的方式即kslbegin shared和excl。与之相对应的是kcbgcur: kslbegin，kcbgcur的含义为Kernel Cache Buffer Get Current，
+该函数用以获取当前块以便修改，也就是"写"；很显然kcbgcur: kslbegin函数只有以excl排他方式持有child cache buffers chains latch的必要)，
+原因在于虽然是查询语句但同样需要修改buffer header结构，譬如修改tch抢手度、holder list的hash变量us_nxt、us_prv以及waiter list的hash
+变量wa_prv、wa_nxt等。换而言之读读是会引起Latch free:cache buffers chains等待的，而非许多人认为的仅有读写、写写会导致缓存链闩争用。
+
+pin锁：用来确保数据的一致性
+
+逻辑读详解
+    我们都知道,数据块是oracle最基本的读写单位,但用户所需要的数据,并不是整个块,而是块中的行,或列.当用户发出SQL语句时,此语句被解析执行完毕，
+就开始了数据的抓取阶段,在此阶段,服务器进程会先将行所在的数据块从数据文件中读入buffer cache,这个过程叫做物理读.物理读,每读取一个块,就算一次
+物理读.当块被送进buffer cache后,并不能立即将块传给用户,因为用户所需要的并不是整个块,而是块中的行.从buffer cache的块中读取行的过程,就是逻辑
+读.为了完成一次逻辑读,服务器进程先要在hash表中查找块所在的buffer cache 链.找到之后,需要在这个链上加一个cache buffer chains 闩,加闩成功之后,
+就在这个链中寻找指定的块,并在块上加一个pin锁.并释放cache buffer chains闩.然后就可以访问块中的行了.服务器进程不会将块中所有满足条件的行一次取
+出,而是根据你的抓取命令,每次取一定数量的行.这些行取出之后,会经由PGA传给客户端用户.行一旦从buffer cache中取出,会话要释放掉在块上所加的PIN.
+本次逻辑读就算结束.如果还要再抓取块中剩余的行,服务器进程要再次申请获得cache bufffer链闩.再次在块上加PIN.这就算是另外一次逻辑读咯.也就是说,
+服务器进程每申请一次cache buffer链闩,就是一次逻辑读.而每次逻辑读所读取的行的数量,可以在抓取命令中进行设置.
+     逻辑读和Cache buffer chains闩关系密切，TOM曾有文章提到，进程每申请一次Cache buffer chains闩，就是一次逻辑读。但是，逻辑读并不等同
+于Cache buffer chains闩，每次逻辑读，在9i中至少需要获得两Cache buffer chains闩。逻辑读是指在Hash表中定位块的这个过程。
