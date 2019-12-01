@@ -18,3 +18,126 @@ pin锁：用来确保数据的一致性
 服务器进程每申请一次cache buffer链闩,就是一次逻辑读.而每次逻辑读所读取的行的数量,可以在抓取命令中进行设置.
      逻辑读和Cache buffer chains闩关系密切，TOM曾有文章提到，进程每申请一次Cache buffer chains闩，就是一次逻辑读。但是，逻辑读并不等同
 于Cache buffer chains闩，每次逻辑读，在9i中至少需要获得两Cache buffer chains闩。逻辑读是指在Hash表中定位块的这个过程。
+
+DB TIME=DB Wait time + DB CPU time  
+根据awr报告分析DB time
+  查看头部相关参数
+    elapsed:表示自然流逝的时间
+    DB time：表示数据库调用花费的时间
+  查看load profile 相关参数 
+    DB time(s):每自然秒，DB time 对应为多少秒
+    DB cpu(s): 每自然秒，CPU 对应的消耗时间
+      设db time为43.1秒  db cpu 为0.1秒 elapsed为10分钟
+      可推算出db time总耗时为43.1*60*10/60=431分钟
+             db cpu总耗时为0.1*60*10/60=1分钟
+             db wait time=431-1=430分钟
+      验算
+        通过查看top5事件中的首要事件的time  dbtime百分比  avg wait三个参数进行验算
+        avg wait与db time - db cpu 的值接近   time / dbtime 与dbtime百分比的值接近
+
+set autotrace 
+    SET AUTOTRACE OFF ---------------- 不生成AUTOTRACE 报告，这是缺省模式
+    SET AUTOTRACE traceonly EXPLAIN ------ AUTOTRACE只显示SQL的执行计划
+    SET AUTOTRACE traceonly STATISTICS -- 只显示执行结果的数量和资源消耗（统计信息）
+    SET AUTOTRACE ON ----------------- 包含执行计划和统计信息，执行结果数量
+    SET AUTOTRACE TRACEONLY ------ 只显示SQL执行结果的数量，执行计划和资源消耗（统计信息）
+        Statistics
+        ----------------------------------------------------------
+        1728  recursive calls
+            0  db block gets  从buffer cache中读取的block的数量
+        600161  consistent gets  逻辑读次数 从buffer cache中读取的undo数据的block的数量
+            0  physical reads  物理读次数 从磁盘读取的block的数量
+            0  redo size  DML生成的redo的大小
+            673  bytes sent via SQL*Net to client
+            492  bytes received via SQL*Net from client
+            2  SQL*Net roundtrips to/from client
+            42  sorts (memory)  在内存执行的排序量
+            0  sorts (disk)  在磁盘上执行的排序量
+            1  rows processed  sql语句处理或返回了多少行，能直观的看出来，这个sql能不能优化。
+
+优化器分类：RBO和CBO
+    相同点：首先解析有索引的列值，一致性索引的逻辑读次数始终会比非一致性索引的次数少一次，连表查询时，from右边的表为主表，左边的
+        附表
+
+    索引全扫描的条件之一：目标索引列的属性是not null 
+
+
+查询某表的最后一次统计信息
+    select table_name,blocks,num_rows（记录数）,to_char(last_analyed,'yyyymmdd hh24:mi:ss') from dba_tables where table_name='';
+
+查询某表的真实记录数信息
+    select count(*) from 用户名.表名
+
+查询某表的索引情况
+    select index_name,column_name,column_position from dba_ind_columns where table_name ='表名'；
+
+对某表收集统计信息
+    exec dbms_stats.gather_table_stats(ownname=>'用户名',tabname=>'表名',cascade=>true,no_invaliadate=>false,degree=>4);
+
+查询系统级别optimizer_mode的值
+    select name,value from V$parmeter where name='optimizer_mode';
+
+查询会话级别optimizer_mode的值
+    oradebug setospid <process ID>
+    oradebug unlimit
+    oradebug dump processstate 10
+    oradebug tracefile_name
+    从产生的trace文件中查看
+
+设置系统级别optimizer_mode的值
+    alter system set optimizer_mode=xxx
+
+设置会话级别optimizer_mode的值
+    alter session set optimizer_mode=xxx
+
+查看执行计划的方式
+    1. explain plan
+    2. dbms_xplan包
+    3. sqlplus 的autotrace 
+    4. 10046事件
+    5. 10053事件
+    6. awr报告或者statspack报告
+    7. 一些脚本，如display_cursor_9i.sql等
+    (DML语言中select可能只是解析而未被执行)
+
+    explain plan语法详细
+        explain plan for SQL语句 ;
+        select * from table(dbms_xplan.display)
+
+    dbms_xplan包的用法
+        select * from table(dbms_xplan.display)
+        select * from table(dbms_xplan.display_cursor(null,null,'advanced'))作用于刚刚执行的SQL语句 
+        select * from table(dbms_xplan.display_cursor('sql_id/hash_value',child_cursor_number,'advanced'))根据sql_id/hash_value和
+            child_cursor_number查看执行计划   作用域仅限SQL所在的child_cursor还存在于shared pool中
+        select * from table(dbms_xplan.display_awr('sql_id"))根据SQL id查看其历史的执行计划，无法查询到执行步骤相对应的谓词条件
+
+    10046事件
+        1. 当前会话中激活10046事件
+        2. 当前会话中执行目标SQL语句
+        3. 关闭10046事件
+        Oracle会将目标SQL的执行计划和资源消耗写入当前会话所对应的trace文件中，此文件的命名格式为‘实例名_ora_当前会话的spid.trc';此文件将保存在user_dump_dest
+        所代表的目录下生成，其生成的是裸文件，使用tkprof命令翻译裸文件
+
+        激活方法
+            1. alter session set events '10046 trace name context forever,level 12';
+            2. oradebug event 10046 trace name context forever,level 12;
+        关闭方法
+            1. alter session set events '10046 trace name context off;
+            2. oradebug event 10046 trace name context off;
+
+
+查看当前session的session id 
+    select sid from V$mystat where rownum<2;
+查看当前session id对应的session address 
+    select saddr from V$session where sid=144;
+查看当前session address产生的transaction总数
+    select count(*) from V$transaction where ses_addr='';
+查看当前session产生的transaction锁住的对象总数
+    select count(*) from V$locked_object;
+查看当前transaction 锁住的对象的object id
+    select object_id from V$locked_object;
+查看object id所对应的对象信息
+    select owner,object_name from dba_objects where object_id=xxx;
+
+清空共享池
+    alter system flush shared_pool;
