@@ -73,7 +73,7 @@ set autotrace
 
 对某表收集统计信息
     exec dbms_stats.gather_table_stats(ownname=>'用户名',tabname=>'表名',cascade=>true,no_invaliadate=>false,degree=>4);
-
+    exec dbms_stats.gether_table_stats(ownname=>'用户名',tabname=>'表名',method_opt=>'for all columns size 1',cascade=>ture);
 查询系统级别optimizer_mode的值
     select name,value from V$parmeter where name='optimizer_mode';
 
@@ -125,6 +125,117 @@ set autotrace
             1. alter session set events '10046 trace name context off;
             2. oradebug event 10046 trace name context off;
 
+如何查看执行计划
+    从最开头一直连续往右看，直到看见并列的位置，对于不并列的，靠右的先执行，对于并列的从上往下看，上面的先执行
+
+执行计划 
+    与表访问相关的执行计划
+        全表扫描在执行计划中对应的关键字是table access full 
+        rowid扫描对应的执行计划的关键字为table access by user rowid 或table access by index rowid (取决于SQL计划的关键字和目标表中是否有索引)
+
+    与B树索引相关的执行计划（列值不能为空值 not null）
+        索引唯一性扫描对应关键字为index unique scan
+            近适用于where条件中是等值查询的SQL语句，其返回结果至多只有一条
+        索引范围扫描对应关键字为index range scan
+            目标SQL语句中where条件有一定的查询范围如between <  > >= <=等，同等搜索条件下范围扫描至少会比唯一性扫描的逻辑读次数多一次
+        索引全扫描对应关键字为index full scan
+            按照顺序依次对索引进行扫描，该方法既能对扫描结果达到排序的效果，又能同时避免对该索引值列真正的排序
+        索引快速全扫描对应关键字为index fast full scan
+            此方法只适用于CBO，可使用多块读，也可以并行执行，返回的结果不一定是有序的
+        索引跳跃式扫描对应关键字为index skip scan
+            此方法适用于where条件中没有对索引所在前导列指定条件，而对索引其他列指定条件时，，此方法适用于所有的复合索引
+
+    与位图索引相关的执行计划
+        创建位图索引关键字 create bitmap 索引名 on 表名(列名)
+        优势：
+            1. 被索引的列的distinct值较少，位图索引更节省存储空间
+            2. 在多个列上创建索引，同等条件下更节省存储空间
+            3. 快速处理一些包含各种and或or的条件查询的事情了
+        适用条件
+            1. 数据相同量大，相同量占总量比例高
+
+        位图索引单键值扫描 bitmap index single value   
+        位图索引范围扫描 bitmap index range scan
+        位图索引全扫描 bitmap index full scan
+        位图索引快速全扫描 bitmap index fast full scan
+        位图按位与 bitmap and 
+        位图按位或 bitmap or
+        位图按位减 bitmap minus
+
+    与表连接相关的执行计划
+        排序合并连接对应的关键字是sort join和merge join
+        嵌套循环连接对应的关键字是 nested loops
+        哈希连接对应的关键字是 hash join 
+            哈希半连接 hash join semi
+        与反连接所对应的关键字是anti 连接方法不同对应的关键字可分为sort join anti, merge join anti, nested loops anti
+        与半连接所对应的关键字是semi 连接方法不同对应的关键字可分为sort join semi, merge join semi, nested loops semi
+            半连接会对连接结果进行必要的去重，即对表执行半连接的查询计划时会自动对查询结果进行必要的去重
+
+    其他执行计划
+        and-equal又称index merge,指如果where条件里出现了多个针对不同列的等值条件，且这些列上都有单键值的索引，则Oracle会以相应的单个
+    等值条件去分别扫描这些索引，然后合并这些单个索引所得到的rowid集合，在从这些集合中筛选值相同的rowid再用筛选过的这些rowid回表得到目标
+    SQL的最终执行结果
+        and_equal对应关键字为and_equal
+
+        index join 
+        对应关键字为index join 
+
+        视图合并view
+        对应关键字为view
+            如果能做视图合并SQL计划里不一定会出现view关键字，若不能做视图合并SQL计划里一定会出现view关键字，主要看谓词信息(prediacte 
+        information)里面提示的内容
+
+        filter过滤是一种改良的嵌套循环连接
+        
+        sort排序，通常以组合方式出现，比如下列几种
+            1. sort aggreate 不一定进行排序
+            2. sort unique              是否进行排序主要看统计信息中sorts(memory)和sorts(disk),上同，下同
+            3. sort join 
+            4. sort group by 
+            5. sort order by 
+            6. buffer sort 不一定进行排序 /验证是否排序，需要根据目标SQL真实执行计划中的#key值来确定，若值大于0则进行了排序
+
+        union/union all 联合查询
+            union：以并集的方式将连个表合并，且做好去重和排序
+            union all：以并集的方式将表合并，不会进行去重和排序
+
+        concat
+            concat就是in_list扩展或or扩展
+            执行计划中对应的关键字是concatenation
+            in-list iterator  in-list迭代执行计划中对应的关键字为 inlist iterator
+
+        层次查询(hierarchical queries)
+            connect by 
+
+
+稳定执行计划
+    使用SPM 或者SQL profile来稳定执行计划
+
+    SQL profile直译为SQL 概要  （被动执行）
+    目的：
+        1. 稳定执行计划
+        2. 在不能修改目标SQL的SQL文本的情况下使目标SQL语句按指定的执行计划执行
+    分类：
+        automatic类型
+            可以在不更改目标SQL的情况下更改其执行计划
+        manual类型
+            可以在不更改目标SQL的情况下更改其执行计划，同时可以很好的稳定目标SQL的执行计划
+    
+    SPM SQL PLAN Management  (主动稳定执行计划，且可以持续更新计划)
+        启用后每一个SQL都会存在对应的SQL plan baseline，若有多个执行计划就有多个SQL plan baseline ，
+        dba_sql_plan_baselines中列enabled和accepted用来判断SQL plan baseline所对应的执行计划能否被使用
+        若enabled accepted的值均为yes则对应的SQL plan baseline的执行计划才能被启用，若有多个值为yes的SQL plan baseline则Oracle
+        会从中选择成本值最小的执行计划来执行该SQL语句
+
+        启用方式
+            自动捕获： 
+                optimizer_capture_sql_plan_baselines此参数用于控制是否开启自动捕获SQL plan baseline，默认为false,不捕获
+                    将其值设为true之后Oracle会对此参数影响的范围内所有重复执行的SQL自动捕获SQL plan baseline，且第一次捕获的SQL
+                    值均为yes
+                optimizer_use_sql_plan_baselines此参数用于控制是否启用SMP ，默认值为true启用，此参数可以在会话和系统
+                    级别修改
+        更新执行计划可将要执行计划的enabled和accepted的值设为yes，将正在执行的计划中的值设为no即可
+
 
 查看当前session的session id 
     select sid from V$mystat where rownum<2;
@@ -141,3 +252,41 @@ set autotrace
 
 清空共享池
     alter system flush shared_pool;
+
+
+库缓存（library cache）：是共享池中的一块内存区域，主要作用是缓存刚刚执行过的SQL语句和pl/sql语句所对应的执行计划、解析树、pcode、
+mcode等对象，当同样的语句再次被执行的时候，就可以利用已经缓存在库缓存的相关对象，无需从头开始，提高了语句在重复执行时的效率
+    库缓存对象library cache object：所有的库缓存对象都是以库缓存对象句柄的结构存储在库缓存中，Oracle通过访问相关的库缓存对象句柄
+  来访问对应的库缓存对象
+    库缓存对象句柄library cache object handle：以哈希表的方式存储在库缓存中，Oracle通过相关的哈希运算存储访问对应的库缓存对象句柄
+        常用属性介绍
+            name：表示库缓存对象句柄对应的库缓存对象的名称，若是SQL语句对应的库缓存对象句柄，则name的值就是该SQL的SQL文本
+                若是表对应的库缓存对象句柄，则那name的值就是该表的表名
+            namespace：表示库缓存对象句柄对应的库缓存对象所在的分组名，不同类型的库缓存对象所对应的库缓存对象句柄的namespace值
+                可能相同
+    库缓存对象句柄链表library cache object handles：
+    data heap是库缓存中一块连续的内存区域，由Oracle动态分配，大小不是固定不变的，一个库缓存对象有多个data heap，但每个data heap之间是独立的，没有关联关系
+
+
+cursor游标与绑定变量
+    游标分类
+        shared cursor：指缓存在库缓存里的SQL语句和匿名PL/SQL语句所对应的库缓存对象，对应库缓存对象句柄的namespace值为crsr
+            分类：
+                parent cursor父游标：目标SQL的SQL文本会存储在其对应的库缓存对象句柄的属性name中
+                child cursor 子游标：目标SQL的解析树和执行计划存储在其对应的库缓存对象句柄的heap6中
+            Oracle数据库里，任意一个目标SQL一定会同时对应两个shared cursor，分别为parent cursor和child cursor,其中parent cursor存储该SQL的SQL文本信息
+          child cursor存储该SQL的解析树和执行计划，这种双游标的方式可以有效降低对应hash bucket中库缓存对象句柄链表的长度
+            通过V$sqlarea视图可以查询到目标SQL的游标数，列version_count的值表示某个parent cursor所拥有的child cursor的数量
+                select sql_id,version_count from V$sqlarea where ....;
+            通过V$SQL视图查询目标SQL的所有child cursur
+                select plan_hash_value,child_number from V$sql where sql_id='xxxx';
+    
+        session cursor 
+
+    硬解析（hard parse）
+        分类：
+            1. 在库缓存中找不到匹配的parent cursor，此时Oracle会从头解析目标SQL，并重新生成一个parent cursor和child cursor并挂在对应的hash bucket
+            2. 匹配到parent cursor但匹配不到child cursor,此时Oracle会从头解析SQL新生成一个child cursor并 将其挂在相应的parent cursor
+        危害：
+            1. 会导致shared pool latch的争用，会影响系统的性能和可扩展性（通常表现为CPU占用率居高不下）
+            2. 导致库缓存相关latch和mutex的争用
