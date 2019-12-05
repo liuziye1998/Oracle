@@ -272,18 +272,59 @@ mcode等对象，当同样的语句再次被执行的时候，就可以利用已
 
 cursor游标与绑定变量
     游标分类
-        shared cursor：指缓存在库缓存里的SQL语句和匿名PL/SQL语句所对应的库缓存对象，对应库缓存对象句柄的namespace值为crsr
+        shared cursor：指缓存在库缓存里的SQL语句和匿名PL/SQL语句所对应的库缓存对象，对应库缓存对象句柄的namespace值为crsr,存储于SGA的库缓存里
+        shared cursor是共享的，任意会话，用户都可以访问
             分类：
-                parent cursor父游标：目标SQL的SQL文本会存储在其对应的库缓存对象句柄的属性name中
+                parent cursor父游标：目标SQL的SQL文本会存储在其对应的库缓存对象句柄的属性name中，
                 child cursor 子游标：目标SQL的解析树和执行计划存储在其对应的库缓存对象句柄的heap6中
             Oracle数据库里，任意一个目标SQL一定会同时对应两个shared cursor，分别为parent cursor和child cursor,其中parent cursor存储该SQL的SQL文本信息
           child cursor存储该SQL的解析树和执行计划，这种双游标的方式可以有效降低对应hash bucket中库缓存对象句柄链表的长度
             通过V$sqlarea视图可以查询到目标SQL的游标数，列version_count的值表示某个parent cursor所拥有的child cursor的数量
                 select sql_id,version_count from V$sqlarea where ....;
-            通过V$SQL视图查询目标SQL的所有child cursur
+            通过V$SQL视图查询目标SQL的所有child cursur，列child_number对应的就是详细信息
                 select plan_hash_value,child_number from V$sql where sql_id='xxxx';
+            通过V$SQL视图查询目标SQL的parent cursor的库缓存对象句柄地址
+                select plan_hash_value,child_number,address from V$sql where sql_id='xxxx';
     
-        session cursor 
+        session cursor 用于当前session中解析和执行SQL，存储在PGA中
+            与shared cursor的区别
+                1. session cursor与session是一一对应的，不同session之间的session cursor之间无法共享
+                2. session cursor是有生命周期的，其在使用过程中至少会经历一次open,parse,bind,execute,fetch和close中的一个或多个，当其被使用后是否会缓存
+              在相应session的PGA中，有参数session_cached_cursors的值是否大于0决定
+                    若参数session_cached_cursors的值等于0，那么session_cursor就会正常执行close操作。
+                    若在当前的session的PGA中找不到匹配的缓存session cursor，但在库缓存中找到了匹配的parent/child cursor，则Oracle会新建一个session cursor
+                  并重用刚刚匹配到的parent/child parent,此过程为软解析
+                3. 以哈希表的方式缓存在PGA中，其执行机制和shared cursor一致：先根据目标SQL的SQL文本的哈希值去PGA中相应的hash bucket中找匹配session cursor
+              若匹配不到，Oracle会新生成一个session cursor和一对shared cursor(存储能被所有session共享，重用的内容)，session cursor会经历一次open,parse,
+              bind,execute,fetch和close中的一个或多个阶段
+
+              相关参数解析：
+                1.open_cursors：用于设定单个session中同时能够以open状态存放的session cursor的总数，若超过该总数，Oracle会报错ORA-1000：maximum open
+              cursors exceeded
+                    根据V$mystat查询当前会话的sid 
+                        select sid from V$mystat where rownum<2;
+                    根据V$open_cursor视图查询当前会话的所有open状态的或者被缓存的session cursor的总数
+                        select count(*) from V$open_cursor where sid=xxxx;
+                    根据V$sysstat查询当前数据库中所有以open状态存在的session cursor的总数
+                        select name,value from V$sysstat where name='opened cursors current';
+                2. session_cached_cursors：用于设定单个session中能够以soft closed状态存放的session cursor的总数，即单个session能在PGA中缓存的总数
+                    此参数Oracle通过LRU算法来动态管理存储在其中的内容
+                    根据SQL语句，会话的sid和V$open_cursor视图来查询PGA中session cursor的状态
+                        select cursor_type from V$open_cursor where sql_text='xxx'/sql_text like 'xxxx'  and sid=xxxx;
+                        状态显示为session cursor cached才是理想的缓存类型
+                3. cursor_space_for_time(此参数仅对Oracle10g及以前的版本有用)：其默认值为false，一旦执行完目标SQL之后其对应的状态就不是execute(执行状态)了
+              那么此时SQL所对应的child cursor就不能pin(锁)在库缓存中了，也就是说Oracle会释放该SQL所对应的child cursor上的library cache pin同时意味着该SQL
+              对应的解析树和执行计划就可以被置换出库缓存了
+        
+        对应关系
+            1. 一个session cursor只能对应一个shared cursor，一个shared cursor可以对应多个session cursor
+            2. Oracle在解析和执行目标SQL时，始终会先去当前的session的PGA中查找是否有配备的缓存session cursor
+            3. 若在当前的PGA中找不到匹配的缓存session cursor，Oracle就会去库缓存中寻找是否有匹配的parent cursor，若找不到Oracle会新生成一个session cursor
+          和一对shared cursor。若找到匹配的parent child但找不到匹配的child cursor则Oracle会生成一个session cursor和一个child cursor，并将新生成的child 
+          cursor挂在之前匹配的parent下面。上述的两种条件都是硬解析
+            4. 若在当前的PGA中找不到匹配的缓存session cursor，但是在库缓存中找到了匹配的parent/child cursor，此时Oracle会生成一个新的session cursor并重用
+          刚才匹配的parent/child cursor 此过程对应为软解析
+            5. 若在当前的session的PGA中找到了匹配的session cursor，则通过该session cursor直接访问到该SQL对应的parent/child cursor。此过程为软软解析
 
     硬解析（hard parse）
         分类：
@@ -291,4 +332,27 @@ cursor游标与绑定变量
             2. 匹配到parent cursor但匹配不到child cursor,此时Oracle会从头解析SQL新生成一个child cursor并 将其挂在相应的parent cursor
         危害：
             1. 会导致shared pool latch的争用，会影响系统的性能和可扩展性（通常表现为CPU占用率居高不下）
-            2. 导致库缓存相关latch和mutex的争用
+                Oracle必须要在shared pool中分配出一块内存区域用于存储新产生的child cursor而这一动作是需要一定的shared pool latch来完成
+                latch的作用之一就是保护共享内存的分配
+            2. 导致库缓存相关latch（如 library cache latch）和mutex的争用
+                硬解析需要扫描hash bucket中库缓存对象句柄链表，这一动作需要一定的library cache latch来完成
+                latch的另一个作用就是用于共享SGA内存结构的并发访问控制
+                muetx是一种轻量级的latch主要用于共享SGA内存结构的并发访问控制，其描述事件如 cursor:pin S  cursor:pin X  cursor:pin S wait on X 
+                cursor:mutex S  cursor:muetx X  library cache:muetx X等
+            硬解析会先持有library cache latch，并且在不释放library cache的情况下再持有shared pool latch以便从shared pool中申请分配内存，申请成功后会
+          释放shared pool latch最后再释放library cache latch 
+            
+    软解析（soft parse）
+        是指oracle在执行目标SQL时，在库缓存（library cache）中找到匹配的parent cursor和child cursor，并将其存储在child cursor中的
+      解析数和执行计划拿来直接使用无须从头开始解析的过程
+        与硬解析相比下的优势
+            1. 不会导致shared pool latch的争用，会影响系统的性能和可扩展性（通常表现为CPU占用率居高不下）
+            2. 软解析也可能会导致库缓存相关latch（如library cache latch）和mutex的争用，但软解析持有库缓存相关latch的次数要少，且
+          持有时间较短，其造成的危害较硬解析来说小的多，也少的多
+        
+    软软解析：将一个使用过的session cursor设为soft closed同时将其缓存在当前session的PGA中，再去做parse bind execute fetch，此过程称为软软解析
+        与软解析相比的有点
+            1. 对session cursor的使用方面比软解析要好，软软解析省去了一个关闭现有session cursor和新建一个session cursor所耗费的资源和时间
+            2.对库缓存相关latch的争用方面会比软解析要好，缓存在PGA中的session cursor所在的hash bucket中已经存储了目标SQL的parent的库缓存对象句柄地址
+
+    建议：OLTP类型的系统在执行目标SQL时使用软解析，系统相较使用硬解析时，系统的性能和可扩展性会有显著提示
