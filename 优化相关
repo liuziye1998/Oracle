@@ -1,9 +1,12 @@
-闩相关概念
+latch 闩相关概念
     kcbgtcr是Oracle rdbms中重要的获取一致性读的函数，其含义为Kernal Cache Buffer GeT Cosistents Read，显然该函数存在两种获取
 cache buffers chains的方式即kslbegin shared和excl。与之相对应的是kcbgcur: kslbegin，kcbgcur的含义为Kernel Cache Buffer Get Current，
 该函数用以获取当前块以便修改，也就是"写"；很显然kcbgcur: kslbegin函数只有以excl排他方式持有child cache buffers chains latch的必要)，
 原因在于虽然是查询语句但同样需要修改buffer header结构，譬如修改tch抢手度、holder list的hash变量us_nxt、us_prv以及waiter list的hash
 变量wa_prv、wa_nxt等。换而言之读读是会引起Latch free:cache buffers chains等待的，而非许多人认为的仅有读写、写写会导致缓存链闩争用。
+
+enqueue：是Oracle中另一种类型的锁，不像latch那么轻量，比latch要重，持有方式遵循先进先出，并且持有不具备原子性，因此持有enqueue往往需要先持有具备原子性的latch
+用latch来保护enqueue的持有
 
 pin锁：用来确保数据的一致性
 
@@ -298,7 +301,7 @@ cursor游标与绑定变量
               若匹配不到，Oracle会新生成一个session cursor和一对shared cursor(存储能被所有session共享，重用的内容)，session cursor会经历一次open,parse,
               bind,execute,fetch和close中的一个或多个阶段
 
-              相关参数解析：
+            相关参数解析：
                 1.open_cursors：用于设定单个session中同时能够以open状态存放的session cursor的总数，若超过该总数，Oracle会报错ORA-1000：maximum open
               cursors exceeded
                     根据V$mystat查询当前会话的sid 
@@ -314,8 +317,63 @@ cursor游标与绑定变量
                         状态显示为session cursor cached才是理想的缓存类型
                 3. cursor_space_for_time(此参数仅对Oracle10g及以前的版本有用)：其默认值为false，一旦执行完目标SQL之后其对应的状态就不是execute(执行状态)了
               那么此时SQL所对应的child cursor就不能pin(锁)在库缓存中了，也就是说Oracle会释放该SQL所对应的child cursor上的library cache pin同时意味着该SQL
-              对应的解析树和执行计划就可以被置换出库缓存了
-        
+              对应的解析树和执行计划就可以被置换出库缓存了，可将其值设为true以减少库缓存相关的latch争用，但副作用是，增加对shared pool空间的压力，尤其是当
+              shared pool空间紧张时更为明显
+
+        分类及用法：
+            隐式游标（implicit cursor）：其生命周期管理由sql引擎或pl/sql引擎自动完成
+                常用属性
+                    1. sql%found：表示一条SQL语句执行成功后受其影响而改变的记录数是否大于或等于1，通常适用于DML语句也适用于select into语句，在pl/sql里使用
+                  select into语句时，当且仅当对应的select语句的返回结果只有一条记录时Oracle才不会报错
+
+                    2. sql%notfound：表示一条SQL语句执行成功后受其影响而改变的记录数是否为0，通常适用于DML语句也适用于select into语句，当一条DML语句被执行
+                  且这条语句没有没有任何改变记录的时候，又或者select into语句没有任何记录的时候，其值为true否则为false
+
+                    3. sql%isopen：表示隐式游标是否处于open状态，对于淫隐式游标而言，SQL%isopen的值永远是false
+
+                    4. sql%rowcount：表示一条SQL执行成功后，受其影响而改变的记录数，，通常适用于DML语句也适用于select into语句，当select into语句返回超过
+                  一条以上的记录时，Oracle会报错TOO_MANY_ROWS,这种情况下其返回值是1，而不是select into语句所有对应的select语句实际查到的记录数，
+                  sql%rowcount的值仅代表最近一次的SQL对应的值，后面执行的会把前面的覆盖掉
+                
+            显示游标（explicit cursor）：其定义和生命周期管理中的open，fetch和close均由人为在pl/sql代码中控制
+                常用属性
+                    1. 游标名%found：表示指定的显示游标是否至少有1条记录被fetch了，当游标被open后若一次都没有被fetch那么其值为null，当游标被fetch之后其值为
+                  true直到全部fetch完成之后，若全部完成之后在执行一次fetch，此时的值为false。当游标还未被open则Oracle会报错INVALID_CURSOR
+
+                    2. 游标名%notfound：表示指定的显示游标是否已经fetch完毕了，当游标被open后若一次都没有被fetch那么其值为null，当游标被fetch之后其值为
+                  false直到全部fetch完成之后，若全部完成之后在执行一次fetch，此时的值为true。当游标还未被open则Oracle会报错INVALID_CURSOR
+
+                    3. 游标名%isopen：表示指定的显式游标是否被open，常用于exception处理流程中，用于关闭那些发生异常而导致显示游标为被正常关闭的情形
+
+                    4. 游标名%rowcount：表示指定的显示游标迄今为止一共fetch了多少行记录，当游标被open以后，若一次都没有fetch，则其值为0，若被fetch后
+                  返回结果集为空，则其值为0，若返回结果集不为空，其值代表迄今为止一共fetch了多少行记录，当游标还未被open则Oracle会报错INVALID_CURSOR
+                
+                注意
+                    1. 显式游标的标准用法为先open后fetch，再用while循环逐条处理数据，最后close
+                    2. 显式游标标准用法的while循环内部处理一条记录后，一定记得执行fetch操作以跳到下一条记录，否则就是死循环
+
+            参考游标（ref cursor）：其定义和生命周期管理中的open，fetch和close均由人为在pl/sql代码中控制
+                常用属性
+                    1. 游标名%found：表示指定的显示游标是否至少有1条记录被fetch了，当游标被open后若一次都没有被fetch那么其值为null，当游标被fetch之后其值为
+                  true直到全部fetch完成之后，若全部完成之后在执行一次fetch，此时的值为false。当游标还未被open则Oracle会报错INVALID_CURSOR
+
+                    2. 游标名%notfound：表示指定的显示游标是否已经fetch完毕了，当游标被open后若一次都没有被fetch那么其值为null，当游标被fetch之后其值为
+                  false直到全部fetch完成之后，若全部完成之后在执行一次fetch，此时的值为true。当游标还未被open则Oracle会报错INVALID_CURSOR
+
+                    3. 游标名%isopen：表示指定的显式游标是否被open，常用于exception处理流程中，用于关闭那些发生异常而导致显示游标为被正常关闭的情形
+
+                    4. 游标名%rowcount：表示指定的显示游标迄今为止一共fetch了多少行记录，当游标被open以后，若一次都没有fetch，则其值为0，若被fetch后
+                  返回结果集为空，则其值为0，若返回结果集不为空，其值代表迄今为止一共fetch了多少行记录，当游标还未被open则Oracle会报错INVALID_CURSOR
+                
+                灵活性
+                    1. 定义方式非常灵活，有多种定义方式
+                    2. open方式灵活，可以随时open，并且每次open对应的SQL语句都可以是不一样的
+                    3. 可以作为存储过程的输入参数和函数的输出参数
+                
+                其他特性
+                    1. 执行fetch操作时，除了常规的一次fetch一条数据之外，还可以一次fetch一批数据
+                    2. 参考游标和显式游标可以嵌套使用
+            
         对应关系
             1. 一个session cursor只能对应一个shared cursor，一个shared cursor可以对应多个session cursor
             2. Oracle在解析和执行目标SQL时，始终会先去当前的session的PGA中查找是否有配备的缓存session cursor
@@ -325,6 +383,9 @@ cursor游标与绑定变量
             4. 若在当前的PGA中找不到匹配的缓存session cursor，但是在库缓存中找到了匹配的parent/child cursor，此时Oracle会生成一个新的session cursor并重用
           刚才匹配的parent/child cursor 此过程对应为软解析
             5. 若在当前的session的PGA中找到了匹配的session cursor，则通过该session cursor直接访问到该SQL对应的parent/child cursor。此过程为软软解析
+
+        总结：
+            1. SQL文本不完全相同的目标SQL直接无法重用解析树和执行计划
 
     硬解析（hard parse）
         分类：
@@ -356,3 +417,11 @@ cursor游标与绑定变量
             2.对库缓存相关latch的争用方面会比软解析要好，缓存在PGA中的session cursor所在的hash bucket中已经存储了目标SQL的parent的库缓存对象句柄地址
 
     建议：OLTP类型的系统在执行目标SQL时使用软解析，系统相较使用硬解析时，系统的性能和可扩展性会有显著提示
+
+
+    绑定变量bind variable：是一种特殊类型的变量，又被称为占位符（placeholder），通常出现在目标SQL文本中，用于替换SQL文本中的where条件或values子句（适用于
+  insert语句）中的具体输入值
+        语法格式：
+            :variable_name，用冒号和自定义变量名称的组合，来替换目标SQL的SQL文本中的具体输入值
+        优势：
+            有效降低硬解析的次数，对高并发的OLTP系统效果尤为显著，对于OLAP/DSS类型的系统来说效果就微乎其微了
