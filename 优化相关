@@ -110,8 +110,8 @@ set autotrace
     dbms_xplan包的用法
         select * from table(dbms_xplan.display)
         select * from table(dbms_xplan.display_cursor(null,null,'advanced'))作用于刚刚执行的SQL语句 
-        select * from table(dbms_xplan.display_cursor('sql_id/hash_value',child_cursor_number,'advanced'))根据sql_id/hash_value和
-            child_cursor_number查看执行计划   作用域仅限SQL所在的child_cursor还存在于shared pool中
+        select * from table(dbms_xplan.display_cursor('sql_id/hash_value',child_cursor_number(即游标中的解析树编号),'advanced'))根据sql_id/hash_value和
+            根据sql_id/hash_value和child_cursor_number查看执行计划   作用域仅限SQL所在的child_cursor还存在于shared pool中
         select * from table(dbms_xplan.display_awr('sql_id"))根据SQL id查看其历史的执行计划，无法查询到执行步骤相对应的谓词条件
 
     10046事件
@@ -273,7 +273,7 @@ mcode等对象，当同样的语句再次被执行的时候，就可以利用已
     data heap是库缓存中一块连续的内存区域，由Oracle动态分配，大小不是固定不变的，一个库缓存对象有多个data heap，但每个data heap之间是独立的，没有关联关系
 
 
-cursor游标与绑定变量
+cursor游标
     游标分类
         shared cursor：指缓存在库缓存里的SQL语句和匿名PL/SQL语句所对应的库缓存对象，对应库缓存对象句柄的namespace值为crsr,存储于SGA的库缓存里
         shared cursor是共享的，任意会话，用户都可以访问
@@ -288,6 +288,8 @@ cursor游标与绑定变量
                 select plan_hash_value,child_number from V$sql where sql_id='xxxx';
             通过V$SQL视图查询目标SQL的parent cursor的库缓存对象句柄地址
                 select plan_hash_value,child_number,address from V$sql where sql_id='xxxx';
+            通过V$SQL视图查询根据SQL_id查询改SQL的child cursor的执行计划plan_hash_value，执行次数executions，逻辑读次数buffer_gets
+                select child_number,executions,buffer_gets,plan_hash_value from V$sql where sql_id='xxx';
     
         session cursor 用于当前session中解析和执行SQL，存储在PGA中
             与shared cursor的区别
@@ -419,7 +421,7 @@ cursor游标与绑定变量
     建议：OLTP类型的系统在执行目标SQL时使用软解析，系统相较使用硬解析时，系统的性能和可扩展性会有显著提示
 
 
-    绑定变量bind variable：是一种特殊类型的变量，又被称为占位符（placeholder），通常出现在目标SQL文本中，用于替换SQL文本中的where条件或values子句（适用于
+绑定变量bind variable：是一种特殊类型的变量，又被称为占位符（placeholder），通常出现在目标SQL文本中，用于替换SQL文本中的where条件或values子句（适用于
   insert语句）中的具体输入值
         语法格式：
             :variable_name，用冒号和自定义变量名称的组合，来替换目标SQL的SQL文本中的具体输入值
@@ -471,8 +473,199 @@ cursor游标与绑定变量
                 execute  immediate [带绑定变量的目标SQL] using [对应绑定变量的具体输入值]
             关键字forall表示一次执行一批SQL语句，可以和insert，update和delete语句连用
 
-        绑定变量的使用原则
-            1. 对于OLAP/DSS类型的应用系统，可以不适用绑定变量
-            2. 对于OLAP类型的应用系统，在SQL语句中一定要使用绑定变量并且最好使用批量绑定，尽可能的在前台代码和后台pl/sql代码中都使用
-            3. 对于OLAP和OLTP混合型的应用系统中如果有循环，不管循环是在前台代码还是后台pl/sql代码中，循环内部的SQL语句一定要使用绑定
-          变量，最好是使用批量绑定变量，循环外部的SQL语句可以不使用
+    绑定变量的使用原则
+        1. 对于OLAP/DSS类型的应用系统，可以不适用绑定变量
+        2. 对于OLAP类型的应用系统，在SQL语句中一定要使用绑定变量并且最好使用批量绑定，尽可能的在前台代码和后台pl/sql代码中都使用
+        3. 对于OLAP和OLTP混合型的应用系统中如果有循环，不管循环是在前台代码还是后台pl/sql代码中，循环内部的SQL语句一定要使用绑定
+      变量，最好是使用批量绑定变量，循环外部的SQL语句可以不使用
+
+    绑定变量窥探：在SQL第一次被硬解析的时候生成，产生固定的解析树和执行计划，默认为打开状态
+        由参数_optim_peek_user_binds来设定，其值默认为true即打开绑定变量窥探，false为关闭
+        执行计划中peeked binds(identified by position)中显示的为窥探变量的具体信息
+        优点：
+            在计算目SQL的where条件的selectivity和cardinality的值时，避免使用默认的可选择率，有利于得到准确的执行计划
+        缺点：
+            一旦使用绑定变量窥探，其执行计划和解析树就会被固定，若传入的值并不适用与当前的解析计划时，其依然会按照固定的计划执行
+            可使用别的方法使得绑定变量窥探所产生的解析树和执行计划失效，如：使用dbms_shared_pool.purge删除指定在库缓存中的共享游标
+            查询SQL对应的address和hash_value的值，并将其合成一个字符串作为第一个传入参数传入并执行
+            exec sys.dbms_shared_pool.purge('','c');其中c为常量，表示删除的意思，
+            在Oracle10.2.0.4及一下版本中使用此方法市要手动设置event 5614566，否则该方法不起作用
+
+    绑定变量的分级（仅适用于文本类型的绑定变量）：根据文本型绑定变量的长度将变量分成四个等级
+        定义长度在32字节以内的为第一等级
+        定义长度在33字节-128字节以内的为第二等级
+        定义长度在129-2000字节以内的为第三等级
+        定义长度在2000字节以上的为第四等级
+
+    绑定列表分级与SQL child cursor对应关系
+        若SQL文本中文本型绑定变量的定义长度发生变化，则其对应变量分配的内存空间可能也会随之变化，一旦内存空间发生变化，则之前SQL存储的解析树和执行计划不能重用
+      此时SQL在被执行的时候可能会进行硬解析，（child cursor中除了会存储目标SQL的解析树和执行计划外，还会存储该SQL所使用的绑定变量的类型和长度，即该SQL的SQL
+      文本没有发生任何变化，当绑定变量的定义长发生了变化，则再次执行时就可能进行硬解析）
+    
+    建议：在pl/sql代码中处理带文本型绑定变量的目标SQL时，应将这些变量的定义长度保持在同一个等级，可避免不必要的硬解析出现目标SQL的SQL文本中的绑定变量个数不宜
+  太多，否则可能会导致目标SQL总的执行时间大幅度增加
+
+    如何查看已执行的目标SQL中绑定变量的值
+        1. 查询视图V$sql_bind_capture，若查不到则对应的shared cursor已经被置换出shared pool，此时可以尝试去AWR repository相关的数据字典表dba_hist_sqlstat
+      或dba_hist_sqlbind中查询 
+            select sql_id,name,position,datatype_string,laset_captured,value_string from V$sql_bind_capture where sql_id='xxx';
+            其中value_string就是绑定变量的值
+
+    满足以下条件之一时Oracle会捕获绑定变量的具体值
+        1. 当含有绑定变量的目标SQL以硬解析的方式被执行时
+        2. 当含有绑定变量的目标SQL以软解析/软软解析的方式重复执行时，该SQL中的绑定变量的具体输入值也可能会被Oracle捕获，默认情况下此操作每15分钟进行一次
+
+    Oracle只会捕获那些目标SQL的where条件中的绑定变量的具体输入值，而对于哪些使用了绑定变量的inset语句，Oracle始终不会捕获其values子句中对应绑定变量的值  
+
+
+Oracle中的游标共享：shared cursor间的共享，重用存储在child cursor的解析树和执行计划，而不用从头开始硬解析
+    分类：
+        1. 常规游标共享cursor_sharing
+            受如下参数控制
+                1. exact此参数为默认值，代表Oracle不会用系统产生的绑定变量来替换目标SQL的SQL文本中where条件或values子句中的具体值
+                2. similar 代表Oracle会用系统产生的绑定变量来替换目标SQL的SQL文本中where条件或values子句中的具体值，但Oracle只会对他认为是安全的谓词条件
+              在替换后进行重用解析树和解析计划，而其他的不会进行重用 （Oracle12c及后续版本中不支持此参数）
+                    安全的谓词条件：一个谓词所在的目标SQL的执行计划不随该谓词条件的输入值的变化而变化，如等值查询
+                    不安全的谓词条件有 >,>=,<,<=,between，使用带有统配符%的like,以及对直方图统计信息的目标列施加的等值查询等
+                    在此参数控制下且谓词条件为不安全的谓词条件时，只有该谓词条件的当前输入值和之前输入值完全相同时，才会重用之前对应的解析树和执行计划
+                3.force 代表Oracle会用系统产生的绑定变量来替换目标SQL的SQL文本中where条件或values子句中的具体值,并且无条件的重用之前硬解析时对应的解析树和
+                执行计划，（不适用与Oracle11G及后续版本）
+            通过show parameter cursor_sharing;查看属性
+            通过alter session set cursor_sharing='similar'在当前会话中来更改属性值
+
+        2. 自适应游标共享：让使用绑定变量的目标SQL在启用了绑定变量窥探的前提条件下，不再必须沿着之前硬解析产生的解析树和执行计划走下去，让其尽可能的在多个执行
+        计划之间自适应的做出选择
+            Oracle会根据执行目标SQL所对应的runtime统计信息（比如所耗费的逻辑读和CPU时间对应结果集的行数等）的变化，以及当前传入的绑定变量的输入值所在谓词条件
+          的可选择率来进行综合判断是否需要触发目标SQL的硬解析动作
+          
+          做的第一件事
+            扩展游标共享：将目标SQL对应的child cursor标记为bind sensitive，指Oracle觉得某个含有绑定变量的目标SQL的执行计划会随着传入的值的变化而变化
+                满足如下条件时目标SQL对应的child cursor会被标记成bind sensitive 
+                    1. 启用了绑定变量窥探
+                    2. 该SQL使用了绑定变量
+                    3. 该SQL使用的是不安全的谓词条件
+
+          第二件事
+            将目标SQL对应的child cursor标记为bind aware 指Oracle已经确定某个含有绑定变量的SQL的执行计划会随着传入的值的变化而变化
+                满足如下条件时会被标记成bind sensitive
+                    1. 该SQL对应的child cursor已经被标记成Bind sensitive
+                    2. 该SQL在接下来的连续两次执行时，所对应的runtime统计信息与该SQL之前硬解析时所对应的runtime统计信息存在较大差异
+            对于自适应游标共享而言V$sql中列is_bind_senstive,is_bind_aware,is_shareable分别用来表示child cursor是否是，bind sensitive,bind aware,以及
+            是否为可共享的，这里的共享是指该child cursor中的解析树和执行计划是否能被重用，若不能该child cursor也会在第一时间内别age out出shared pool中
+        
+            V$SQL_CS_STATISTICS视图用于显示指定child cursor中存储的runtime统计信息
+            V$SQL_CS_SELECTIVITY视图用于显示指定一个已经被标记为bind aware的child cursor中存储的含绑定变量的谓词条件所对应的可选择率的范围
+                可选择范围计算
+                    选择率=选中的总数/总数
+                    第一次做硬解析时的可选择率为S，然后将S上下浮动10%就得到了上述可选择率的范围，计算公式为[0.9*S,1.1*S]
+                    根据SQL_id查询相应的信息
+                    select child_number,predicate,range_id,low,hight from V$SQL_CS_SELECTIVITY where sql_id='xxx'
+                    perdicate对应为谓词条件，low对应为下限high对应为上限
+
+            执行流程
+                1. 当目标SQL第一次被执行时，Oracle会用硬解析，同时Oracle会根据一系列条件(是否使用绑定变量，参数cursor_sharing的值，绑定变量所在列的直方图
+                该SQL的where条件是等值查询还是范围查询等)来判断是否将该SQL所对应的child cursor标记为bind sensitive,标记为bind sensitive的child cursor，
+                Oracle会把执行该SQL时所对应的runtime统计信息额外的存储在该SQL所对应的child cursor中
+                2. 当目标SQL第二次被执行时。Oracle会使用软解析，并重用第一次执行时产生的child cursor中存储的解析树和执行计划
+                3. 当目标SQL第三次被执行时，若该SQL对应的child cursor已经被标记成bind sensitive同时在第二次，第三次执行该SQL时所记录的runtime统计信息和
+                该SQL第一次硬解析时所记录的统计信息存在较大差异，此时就会进行硬解析，产生一个新的child cursor(会挂在原parent cursor下),并将新的child 
+                cursor标记为bind aware
+                4. 对于标记为binf aware的child cursor所对应的目标SQL，当其再次被执行时，Oracle根据当前传入的绑定变量值所对应的谓词条件的可选择率，来决定
+                使用硬解析还是软解析
+                    判定条件依据：若当前传入的绑定变量值所在的谓词条件的可选择率处于之前硬解析时存储在V$SQL_CS_SELECTIVITY的可选择率的范围内时会使用软解析
+                        并重用相关解析树和执行计划，反之则为硬解析
+                若硬解析所产生的执行计划和原有child cursor中存储的相同，此时会生成一个新的child cursor，将原有的标记为非共享的，并将新产生的和旧的合并(对
+                于可选择率范围的合并，要么扩展对应的下线，要么扩展对应的上限，若有多次合并，则以最后一次合并为准)
+
+            自适应游标共享的缺陷
+                1. 可能导致一定数量的额外的硬解析
+                2. 可能导致一定数量的额外的child cursor挂在同一个parent cursor下，会增加软解析/软软解析时查找匹配child cursor的工作量，也会增加shared pool
+                空间的负担
+
+            禁用自适应游标共享的方法
+                1. 将隐含参数_optimizer_extended_cursor_sharing和_optimizer_extended_cursor_sharing_rel的值均设为none，通过禁用可扩展游标共享，使得
+                child cursor不能被标记为bind sensitive，从而不能被标记为bind aware，来达到禁用自适应游标共享的目的
+                2. 将_optimizer_adaptive_cursor_sharing的值设为false，此时所有的child cursor都将不能再被标记为bind aware
+                硬性条件：SQL中绑定变量的数量不超过14个时，自适应游标共享才会生效，一旦超过，则child cursor 用不会被标记为bind sesitive 
+
+    只要SQL使用了绑定变量，只要满足一定条件，自适应游标共享就会自动生效
+
+session cursor的生命周期
+    阶段1：open
+    阶段2：parse
+    阶段3：describe(仅适用于查询语句，明确SQL所涉及的具体列的名称，类型和长度)
+    阶段4：define(仅适用于查询语句，用于决定一组变量在PGA中的位置，大小和数据类型，这组变量用于存储目标SQL的各个具体查询列所对应的查询结果)
+    阶段5：bind(仅适用于绑定变量的目标SQL，为绑定变量在PGA中预留内存空间，并创建指向这些空间的指针)
+    阶段6：parsellelize(仅适用于开启了并行的情形)
+    阶段7：execute(实际执行阶段)
+    阶段8：fetch(仅适用于查询语句)
+    阶段9：close
+    
+    对于查询语句而言，可能会经历上诉所有阶段，若没有使用绑定变量则不需要经历阶段5，若没有使用并行查询，则不需要经历阶段6
+    对于DML语句，其可能经历上述1，2，5，6，7，9，若没有使用绑定变量则不需要经历阶段5，若没有使用并行查询，则不需要经历阶段6
+    对于DDL语句，只会经历阶段1，2 
+
+    session cursor的parse阶段会做下列事情
+        1. 执行对目标SQL的校验，Oracle会执行对目标SQL的语法，语义和权限的检查
+        2. 执行对目标SQL的查询转换
+        3. 执行对目标SQL的查询优化，
+
+Oracle中的应用类型
+    第一种：目标SQL不使用绑定变量，每次执行时，其对应的session cursor都需要经历open, parse,execute,fetch,close
+        常见为硬解析
+        总结和建议：
+            1. 没有使用绑定变量，系统硬解析的比例非常高
+            2. 性能和可扩展性是四种应用类型中最差的，但适用于OLAP/DSS类型的系统
+            3. 将cursor_sharing的值设为force，可以在不改一行应用代码的情况下有效降低硬解析次数，进而提高系统的性能和可扩展性
+
+    第二种：目标SQL使用了绑定变量，每次执行时，其对应的session cursor都需要经历open, parse,bind,execute,fetch,close
+        常见为软解析
+        总结和建议：
+            1. 与第一种相比，使用了绑定变量，有效降低了系统硬解析的数量，提示了系统的性能和可扩展性
+            2. 执行该类型应用系统中的每一条SQL语句时，其对应的session cursor都需要经历open parse bing execute fetch close这些阶段
+            3. 软解析会引发对session cursor的不断重复open和close，以及对库缓存相关latch的争用，会影响其性能和可扩展性
+            4. 把SESSION_CACHED_CURSORS的值从0改成一个较大的值时，可以提升系统性能和可扩展性
+            5. 从Oracle10g开始session_cached_cursors的值在默认情况下就大于0
+
+    第三种：目标SQL使用了绑定变量，每次执行时，除了open和close以外，其余的parse,bind,execute,fetch每次都需要经历
+        常见为软软解析
+        总结和建议：
+            1. 有效的降低了系统解析的数量，提升了系统的性能和可扩展性
+            2. 执行该类型应用系统中的每一条SQL语句时，其对应的session cursor都需要经历parse bind execute fetch，但open和close只经历一次
+            3. 与第二种相比，可以省掉open一个新的session cursor和关闭一个现有session cursor所耗费的时间，库缓存相关latch的争用方面好的多
+            4. 将cursor_sharing 的值设成force不会对系统有额外的提升
+            5. 将session_cached_cursors的值改成一个比原先更大的值，不会对系统有额外的提升
+            
+    第四种：目标SQL使用了绑定变量，每次执行时，除了execute和fetch每次都需要经历以外其余的open,parse,bind,close都只需经历一次
+        常见为改进的软软解析，一次解析多次执行
+        特点：  
+            1. SQL语句使用了绑定变量
+            2. 数据库端参数session_cached_cursors的值大于0
+            3. 每一条SQL语句对应的session cursor会反复经历execute和fetch，但open parse bind close只经历一次
+        建议：
+            1. 尽可能的把应用系统设计成一次解析多次执行的方式，并同时配合使用批量绑定
+            2. 把参数cursor_space_for_time的值设成true能提升系统性能和可扩展性
+
+Oracle里的查询转换
+
+    查询转换：又称查询改写，指Oracle在解析目标SQL时可能会对其最等价的改写，目的是为了更高效的执行目标SQL，即Oracle会将目标SQL改写成语义上完全等价
+    但执行效率却更高的形式
+
+    子查询：当查询结果是另一个查询条件的时，称之为子查询
+        Oracle数据库里，子查询前的where条件如果是下列条件之一，那这种类型的目标SQL在满足一定条件后就可以做子查询展开
+            1. single-row(即 =，<,<=,>,>=,<>)
+            2. exists
+            3. no exists
+            4. in 
+            5. not in
+            6. any 
+            7. all
+        若子查询前的where条件是single-row条件，则该子查询的结果之多只会返回一条记录，若子查询前的where条件是single-row条件之外的上述其他条件，则返回
+        结果包含多条记录
+
+        子查询展开：一种处理带子查询的目标SQL的一种优化手段，指优化器不再将目标SQL中的子查询当作一个独立的处理单元来单独执行，而是将该子查询转换为它自身和
+        外部查询之间等价的表连接。这种等价表连接要么将子查询拆开(将该子查询的表，视图从子查询中拿出来和外部查询中的表，视图做表连接)，要么不拆开但会把该子
+        查询转化成一个内嵌视图再和外部查询中的表，视图做表连接
+
+        
+        
