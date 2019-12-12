@@ -663,9 +663,146 @@ Oracle里的查询转换
         若子查询前的where条件是single-row条件，则该子查询的结果之多只会返回一条记录，若子查询前的where条件是single-row条件之外的上述其他条件，则返回
         结果包含多条记录
 
-        子查询展开：一种处理带子查询的目标SQL的一种优化手段，指优化器不再将目标SQL中的子查询当作一个独立的处理单元来单独执行，而是将该子查询转换为它自身和
-        外部查询之间等价的表连接。这种等价表连接要么将子查询拆开(将该子查询的表，视图从子查询中拿出来和外部查询中的表，视图做表连接)，要么不拆开但会把该子
-        查询转化成一个内嵌视图再和外部查询中的表，视图做表连接
+        若不使用子查询展开，子查询会在执行计划的最后一步才被执行，并且走filter类型的执行计划，意味着外部查询的结果集中每一条记录都会被子查询当作一个执行单元
+        来执行一次，外部所在结果集中有多少记录，子查询就会被执行多少次
+
+    子查询展开：一种处理带子查询的目标SQL的一种优化手段，指优化器不再将目标SQL中的子查询当作一个独立的处理单元来单独执行，而是将该子查询转换为它自身和外部查
+    询之间等价的表连接。这种等价表连接要么将子查询拆开(将该子查询的表，视图从子查询中拿出来和外部查询中的表，视图做表连接)，要么不拆开但会把该子查询转化成一
+    个内嵌视图再和外部查询中的表，视图做表连接。Oracle会确保子查询展开所对应的等价表连接转换的重要性
+
+        子查询做子查询展开的必要条件
+            1. 子查询展开所对应的等价改写SQL和原SQL在语义上必须是完全等价的，若不完全等价，则不能做子查询展开
+            2. 对于不拆开子查询会将他转换成一个内嵌视图的子查询展开只有当经过子查询展开后的等价改写的SQL的成本值小于原SQL的成本值时，Oracle才会对目标SQL执
+            行子查询展开
+
+    视图合并：
+        是优化器处理带视图的目标SQL的一种优化手段，指优化器不再将目标SQL中视图的定义SQL语句当作一个独立的处理单元来单独执行，而是将其拆开，把其定义SQL语句中
+        的基表拿出来与外部查询中的表合并，合并后的SQL将只剩下外部查询中的表和原视图中的基表，不会在有视图的出现
+        对于简单视图合并条件的目标SQL，不管经过视图合并后的等价改写SQL的成本值是否小于原SQL的成本值，Oracle始终会对其做视图合并
+        对于复杂视图合并，只有等价改写SQL的成本值小于原SQL的成本值时，Oracle才会对目标SQL做复杂视图合并
+
+        分类： 
+            1. 简单视图合并：针对那些不含外连接的，以及所带视图的视图定义SQL语句中不含distinct，group by等聚合函数的目标SQL的视图合并
+                做了简单视图合并后的等价改写SQL的成本值一定是小于或等于未做简单视图合并的原SQL的成本值
+            2. 外连接视图合并：指使用了外连接，以及所带视图的视图定义SQL语句中不含distinct, group by等聚合函数的目标SQL的视图合并，外连接指外部查询的表和
+            视图之间使用了外连接，或该视图的视图定义SQL语句中使用了外连接
+                限制条件：当目标视图在和外部查询的表做外连接时，该目标视图可以做外连接视图合并的前提条件是，要么该视图被作为外连接的驱动表，要么作为被驱动表
+                但作为被驱动表时它的视图定义SQL语句中指包含一个表
+
+            3. 复杂视图合并：针对那些所带视图的视图定义SQL语句中含有group by或distinct的目标SQL的视图合并
+                正是因为复杂视图合并并不一定总是能带来目标SQL的执行效率及性能上的提升，所以，只有经过复杂视图合并后的等价改写SQL的成本小于原sql的成本时，才会
+                对目标SQL执行复杂视图合并
+
+    待补充
+
+
+Oracle中的统计信息
+
+    统计信息：存储在数据字典里，从多个维度描述了Oracle数据库中对象的详细信息
+        分类
+            1. 表的统计信息：用于描述Oracle数据库里表的详细信息，包含一些典型的维度，如记录数，表里数据块的数量，平均行长度等
+            2. 索引的统计信息：用于描数据库中索引的详细信息，包含了一些典型的维度，如索引的层级，叶子块的数量，聚簇因子等 (创建索引后会自动收集统计信息)
+            3. 列的统计信息：用于描数据库中列的详细信息，包含了一些典型的维度，如列的distinct值的数量，列的null值的数量，列的最小，最大值及直方图等
+            4. 系统统计信息：用于描述数据库所在服务器的系统处理能力，包含CPU/IO两个维度，借助此信息，Oracle可以更清楚的知道目标数据库服务器的实际处理能力
+            5. 数据字典统计信息：描述数据库里数据字典基表，基表上的索引，基表的列的详细信息，
+            6. 内部对象统计信息：描述数据库中一些内部表的详细信息，其维度和普通表的统计信息的维度类似
+        
+        收集方法：
+            1. analyze命令：只能收集表，索引，列和数据字典的统计信息
+                对T1表收集统计信息，以估算模式，采样比例为15%
+                    analyze table t1 estimate statistics sample 15 percent for table;
+                对T1表收集统计信息，以计算模式
+                    anaylze table t1 compute statistics for table;
+                对T1表的列收集统计信息，以计算模式
+                    anaylze table t1 compute statistics for columns empno,empid;
+                对T1表一次性收集所有统计信息，以计算模式
+                     anaylze table t1 compute statistics
+                对索引收集统计信息，以计算模式
+                    anaylze index idx compute statistics
+                删除表T1的所有统计信息
+                    anaylze table t1 delete Statistics
+
+            2. DBMX_STATS包：可收集与CBO相关的所有统计信息
+                gather_table_stats：用于收集目标表，目标表的列，索引的统计信息
+                对T1表收集统计信息，以估算模式，采样比例为15%
+                    exec dbms.gather_table_stats(ownname=>'用户名',tabname=>'t1',estimate_percent=>15,method_opt=>'for table',cascade=>false);
+                    其中method_opt的值为for table 这里表示只收集表t1的统计信息，此方法不适用与所有的数据库版本
+                    estimate_percent表示为估计比例，若以计算模式收集将参数值设为100%或者null
+                对T1表收集统计信息，以计算模式
+                    exec dbms_stats.gather_table_stats(ownname=>'用户名',tabname=>'t1',estimate_percent=>100/null,method_opt=>'for table',
+                    cascde=>false)                
+                对T1表的列收集统计信息，以计算模式
+                    exec dbms_stats.gather_table_stats(ownname=>'用户名',tabname=>'t1',estimate_percent=>100,method_opt=>'for columns size 1 
+                    empno empid',cascade=>false);
+                    此方法不仅会收集列的统计信息，还会收集表的统计信息
+                对索引收集统计信息
+                    exec dbms_stats.gather_index_stats(ownname=>'用户名',indname=>'索引名',estimate_percent=>100);
+                一次性以计算模式收集表t1，t1所有列和所有索引的统计信息
+                    exec dbmc_stats.gather_table_stats(ownname=>'用户名',tabname=>'t1',estimate_percent=>100,cascade=>ture);
+                删除表t1，t1所有列以及t1的所有统计信息
+                    exec dbmc_stats.gather_table_stats(ownname=>'用户名',tabname=>'t1');
+
+                gather_index_stats：用于收集指定索引的统计信息
+                gather_schema_stats：用于收集指定schema下所有对象的统计信息
+                gather_database_stats：用于收集全库所有对象的统计信息
+
+            两种方法的区别
+                1. analyze命令不能正确的收集分区表的统计信息，dbms_stats包却可以
+                2. analyze命令不能并行收集统计信息，dbms_stats包却可以，dbms_stats包的并行收集是通过指定输入参数degree来实现的
+                    exec dbms_stats.gathter_table_stats(owname=>xxx,tabname=>xxx,cascade=>true,estimate_percent=>100,degree=>4);
+
+            查看统计信息
+                使用sosi脚本，所有字段的长度之前都需要加上一个字节的用于描述其长度的字节
+
+    表的统计信息
+        表统计信息的种类和含义
+            num_rows表示目标表的记录数
+            blocks：表示目标表所占数据库的数量
+            avg_row_len：表示目标表的平均行长度
+        可通过数据字典dba_tables,dba_tab_partitions,dba_tab_subpartitions来分别查看表，分区表的分区和分区表的子分区的统计信息
+
+    索引的统计信息
+        索引统计信息的种类和含义
+            blevel：代表目标索引的层级，其值越大就表示需要访问的数据块的数量就越多成本就越大
+            height：就是blevel的值再加1
+        可通过数据字典dba_indexes,dba_ind_partitions,dba_ind_subpartitions来分别查看索引，分区索引的分区和局部分区索引的子分区的统计信息
+    
+    聚簇因子的含义及其重要性
+        聚簇因子：指按照索引键值排序的索引行和存储与对应飙中数据行的存储顺序的相似度，初始值为1，若相邻索引行的rowid指向同一数据块，就跳过，反之＋1直到
+        变量完所有行，返回最终的值，统计计划中clustering_factor显示的就是其数量
+        聚簇因子越高，走索引范围扫描的成本就越高
+        降低聚簇因子的唯一方法就是，对表中数据按照目标索引的索引键值排序后重新存储
+        聚簇因子值的大小对CBO判断是否走相关的索引起着至关重要的的作用
+        Oracle中CBO计算索引范围扫描的成本公式：
+            irs cost = i/o cost + cpu cost
+        i/o cost计算公式为
+            i/o cost=index access i/o cost + table access i/o cost
+            index access i/o cost = blevel + ceil(#leaf_blocks * ix_sel)
+            table access i/o cost = ceil(clustering_factor * ix_sel_with_filters)
+    
+列的统计信息
+
+    列统计信息的种类和含义
+        可通过数据字典dba_tab_col_statistice,dba_part_col_statistics,dba_subpart_col_statistics来分别查看表，分区表的分区和分区表的子分区的列统计信息
+        num_distinct存储的就是目标列的distinct值的数量，CBO用num_distinct的值来评估用目标列做等值查询的可选择率
+
+直方图
+    定义：是一种特殊的列统计信息，详细描述了目标列的数据分布情况，可通过数据字典dba_tab_histograms,dba_subpart_histograms,dba_part_histogams来分别查看
+    表，分区表的分区和分区表的子分区的统计信息
+
+    如果对目标列收集了直方图，CBO就会用该目标列上的直方图统计信息来计算对该列施加查询条件后的可选择率和返回结果集，进而选择相应的执行计划
+
+
+
+            
+                
+            
+
+
 
         
+
+
+
+
         
