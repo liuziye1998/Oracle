@@ -3,16 +3,23 @@ ORACLE_HOME：其值为Oracle的家目录
 ORACLE_SID：其值为数据库的名称
 ORACLE_GID：RAC模式的数据库名称
 
+window上不登陆数据库查看，修改Oracle_sid值
+    win+r搜索regedit
+    搜索HKEY_LOCAL_MACHINE\SOFTWARE\ORACLE\KEY_OraDb11g_home1\
+    找到ORACLE_SID
 
 windows下启动数据库
     sqlplus /nolog 没有任何连接状态
     conn 用户名/密码 连接到数据库中
+    直接用dba身份登录
+    sqlplus / as sysdba
 
 Linux下启动数据库
     sqlplus /nolog 无连接状态打开SQLplus
     conn /as dba 用dba身份连接
     startup启动数据库
     conn 用户名/密码  连接到数据库
+    sqlplus / as sysdba
 
 conn 用户名/密码 as sysdba 以数据库管理员的身份连接数据库
 
@@ -725,6 +732,12 @@ imp恢复数据库(导入)
         2. 开始导出
             D:\>expdp test/test test_link remap_schema=test:jss remap_tablespace=test:jsstbs;
 
+        练习：
+            将用户liu所有的表，复制给用户test
+            expdp liu/oracle;
+            impdp test/oracle dumpfile=(上面导出的名称) remap_schema=liu:test(将用户liu所有的表的所有权为test)
+                remap_tablespace=liudefault:test(更改默认表空间为test)
+
 
 传输表空间
     传输前检查源端和目标端的ENDIAN_FORMAT值是否相同，若不相同需要转换
@@ -756,10 +769,15 @@ imp恢复数据库(导入)
 
  （SQLLDR未补充完整）   
 SQLLDR：导入指定文件到数据库
-    1. 控制文件
+    1. 控制文件  文件名格式：以.ctl结尾
         LOAD DATA（控制文件一般以此开头）
-        INFIFLE （指定数据文件的位置，* 表示数据文件在控制文件中）
+        INFIFLE （指定数据文件的位置文件路径以""形式，* 表示数据文件在控制文件中） 数据文件名格式：以.dat结尾
         INTO TABLE 表名称
+            into之前的隐含参数解析
+                insert：为默认值，向表中插入数据，表必须为空，若表不为空会报错
+                append：向表中追加数据
+                replace：替换表中数据，相当于先delect表中数据在insert
+                truncate：先将表中的数据truncate再向表中insert
         FIFLDS TERMINAIED BY "（指定分割符，如逗号等，option enclosed by '"'(指定分界符为双引号)）"
         (...) （为上述表的列名，）
         BEGINDATA（表示其后为待加载数据，仅当INFIFE）
