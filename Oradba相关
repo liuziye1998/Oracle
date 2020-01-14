@@ -844,7 +844,7 @@ rman
 
     执行方式：以backup开始
         单个执行：rman> backup database;
-        批处理：rman>run{......},将多个命令放在一起组成一个命令组，若其中任何一条命令执行失败则其后的所有命令都不被执行
+        批处理：rman>run{......},将多个命令放在一起组成一个命令组，若其中任何一条命令执行失败则其后的所有命令都不被执行，用;隔开
         运行脚本
             1.用命令行调用操作系统中的脚本 D:\> rman /@脚本名称(或者 /cmdfile=脚本名称)))
             2.在rman中执行操作系统中的脚本 rman>@脚本名称
@@ -895,7 +895,7 @@ rman
 
     备份备份集
         backup backupset all;(备份所有备份集，该命令会直接复制当前的备份集，建立一个一模一样的备份集)
-
+        backup backupset n(备份指定的备份集)
     rman常用命令
         1. show：通过show命令显示当前的配置参数 showshow all; 
         2. list：列出数据库中所有的备份信息 list backup；列出相对应的备份信息 list backup of ;列出所有无效备份list expired backup
@@ -903,6 +903,7 @@ rman
             删除过期备份：delete obsolete
             删除无效备份：delete expired backup 删除expired副本：delete expired copy
             删除特定备份集：delete backupset 备份集id  删除特定的备份片 delete backuppiece
+            删除所有备份集：delete backup；
 
     report：对当前备份信息的分析
         report need backup ：查看所有需要备份的文件
@@ -1050,6 +1051,12 @@ rman
     配置默认加密算法
         configure encryption algorithm
         通过V$rman_encryption_algorithm视图查询rman支持的加密算法
+
+    仅启用密码模式
+        set encryption on identified by password only
+    启用密码模式和操作系统认证 
+        set encryption on identified by password
+
         
     rman实战
         run{
@@ -1174,6 +1181,13 @@ rman
             set archivelog destination to 'f:\oracle\backup';
             restore archivelog sequence between 20 and 30; 
         }将恢复出来的归档日志文件放在其他路径下
+
+        丢失当前重做日志且没有备份时，进行不完全恢复
+           1 alter system set "_allow_resetlogs_corruption"=ture scpoe=spfile;
+           2 shutdown immediate 
+           3 startup mount
+           4 recover database until cancel
+           5 alter database open resetlogs
 
     5. 恢复控制文件
         1). 从自动备份中恢复
@@ -1351,15 +1365,22 @@ flashblack：闪回，回滚，回退
                     此方法会使得在scn号之后的所产生的数据全部丢失
                 法二（有待深入探讨）
                     alter database open read only;
+
+
+
+AWR报告
                     
+    1、进入数据库 sqlplus / as sysdba
 
-            
-        
+    2、查看用户 show parameter db_name
 
+    3、开始压测后执行 exec DBMS_WORKLOAD_REPOSITORY.CREATE_SNAPSHOT ();   
 
+    4、 结束压测后执行 exec DBMS_WORKLOAD_REPOSITORY.CREATE_SNAPSHOT ();
 
-
-
+    5、输入命令 @?/rdbms/admin/awrrpt
+    详见：
+        https://blog.csdn.net/w892824196/article/details/82319234
 
 
 
