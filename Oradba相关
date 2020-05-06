@@ -1181,6 +1181,15 @@ rman
             set archivelog destination to 'f:\oracle\backup';
             restore archivelog sequence between 20 and 30; 
         }将恢复出来的归档日志文件放在其他路径下
+	
+	
+	
+        丢失当前重做日志且没有备份时，进行不完全恢复
+           1 alter system set "_allow_resetlogs_corruption"=ture scpoe=spfile;
+           2 shutdown immediate 
+           3 startup mount
+           4 recover database until cancel
+           5 alter database open resetlogs
 
         丢失当前重做日志且没有备份时，进行不完全恢复
            1 alter system set "_allow_resetlogs_corruption"=ture scpoe=spfile;
